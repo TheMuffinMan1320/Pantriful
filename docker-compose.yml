@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: pantriful-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pantriful
+      POSTGRES_PASSWORD: pantriful_dev_password
+      POSTGRES_DB: pantriful
+    ports:
+      - "5432:5432"
+    volumes:
+      - pantriful_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  pantriful_postgres_data:
