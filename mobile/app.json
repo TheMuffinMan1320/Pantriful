@@ -1,16 +1,18 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Pantriful",
+    "slug": "pantriful",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "pantriful",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.pantriful.app",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.pantriful.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
