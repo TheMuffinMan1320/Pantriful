@@ -1,10 +1,13 @@
 package com.pantriful.backend.inventory;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, UUID> {
 
     List<InventoryItem> findByUserId(UUID userId);
+
+    Optional<InventoryItem> findByIdAndUserId(UUID id, UUID userId);
 }

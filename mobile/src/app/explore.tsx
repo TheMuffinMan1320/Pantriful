@@ -1,180 +1,292 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  TextInput,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
+import {
+  ApiError,
+  createInventoryItem,
+  deleteInventoryItem,
+  listInventory,
+  updateInventoryItem,
+  type InventoryItem,
+} from '@/lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, Spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
-  const theme = useTheme();
+type FormState = {
+  editingId: string | null;
+  name: string;
+  quantity: string;
+  unit: string;
+  category: string;
+};
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
+const emptyForm: FormState = { editingId: null, name: '', quantity: '1', unit: 'count', category: '' };
+
+export default function InventoryScreen() {
+  const { state: authState } = useAuth();
+  const theme = useTheme();
+  const [items, setItems] = useState<InventoryItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [form, setForm] = useState<FormState | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const result = await listInventory();
+      setItems(result);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to load inventory');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authState.status === 'signedIn') {
+      load();
+    }
+  }, [authState.status, load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  const submitForm = useCallback(async () => {
+    if (!form) return;
+    const quantity = Number(form.quantity);
+    if (!form.name.trim() || Number.isNaN(quantity) || quantity < 0) {
+      setError('Enter a name and a non-negative quantity.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const input = {
+        name: form.name.trim(),
+        quantity,
+        unit: form.unit.trim() || 'count',
+        category: form.category.trim() || null,
+      };
+      if (form.editingId) {
+        await updateInventoryItem(form.editingId, input);
+      } else {
+        await createInventoryItem(input);
+      }
+      setForm(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to save item');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [form, load]);
+
+  const onDelete = useCallback(
+    async (item: InventoryItem) => {
+      try {
+        await deleteInventoryItem(item.id);
+        await load();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Failed to delete item');
+      }
     },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+    [load],
+  );
+
+  if (authState.status !== 'signedIn') {
+    return (
+      <ThemedView style={styles.container}>
+        <SafeAreaView style={styles.centered}>
+          <ThemedText>Sign in on the Home tab to see your pantry.</ThemedText>
+        </SafeAreaView>
+      </ThemedView>
+    );
+  }
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ThemedView style={styles.header}>
+          <ThemedText type="title" style={styles.title}>
+            Pantry
           </ThemedText>
-
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
+          <Pressable onPress={() => setForm(emptyForm)}>
+            <ThemedText type="linkPrimary">+ Add item</ThemedText>
+          </Pressable>
         </ThemedView>
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+        {error && (
+          <ThemedText type="small" style={styles.error}>
+            {error}
+          </ThemedText>
+        )}
 
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
+        {form && (
+          <ThemedView type="backgroundElement" style={styles.form}>
+            <TextInput
+              placeholder="Name"
+              value={form.name}
+              onChangeText={(name) => setForm({ ...form, name })}
+              style={[styles.input, { color: theme.text }]}
+            />
+            <TextInput
+              placeholder="Quantity"
+              value={form.quantity}
+              onChangeText={(quantity) => setForm({ ...form, quantity })}
+              keyboardType="numeric"
+              style={[styles.input, { color: theme.text }]}
+            />
+            <TextInput
+              placeholder="Unit (e.g. count, lbs, gallon)"
+              value={form.unit}
+              onChangeText={(unit) => setForm({ ...form, unit })}
+              style={[styles.input, { color: theme.text }]}
+            />
+            <TextInput
+              placeholder="Category (optional)"
+              value={form.category}
+              onChangeText={(category) => setForm({ ...form, category })}
+              style={[styles.input, { color: theme.text }]}
+            />
+            <ThemedView style={styles.formActions}>
+              <Pressable onPress={() => setForm(null)}>
+                <ThemedText type="link">Cancel</ThemedText>
+              </Pressable>
+              <Pressable onPress={submitForm} disabled={submitting}>
+                <ThemedText type="linkPrimary">{submitting ? 'Saving…' : 'Save'}</ThemedText>
+              </Pressable>
             </ThemedView>
-          </Collapsible>
+          </ThemedView>
+        )}
 
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+        {items === null ? (
+          <ActivityIndicator style={styles.loading} />
+        ) : (
+          <FlatList
+            data={items}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            ListEmptyComponent={
+              <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+                No items yet. Add your first one above.
+              </ThemedText>
+            }
+            renderItem={({ item }) => (
+              <ThemedView type="backgroundElement" style={styles.row}>
+                <ThemedView style={styles.rowInfo}>
+                  <ThemedText type="smallBold">{item.name}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {item.quantity} {item.unit}
+                    {item.category ? ` · ${item.category}` : ''}
+                  </ThemedText>
+                </ThemedView>
+                <Pressable
+                  onPress={() =>
+                    setForm({
+                      editingId: item.id,
+                      name: item.name,
+                      quantity: String(item.quantity),
+                      unit: item.unit,
+                      category: item.category ?? '',
+                    })
+                  }>
+                  <ThemedText type="link">Edit</ThemedText>
+                </Pressable>
+                <Pressable onPress={() => onDelete(item)}>
+                  <ThemedText type="link" style={styles.deleteText}>
+                    Delete
+                  </ThemedText>
+                </Pressable>
+              </ThemedView>
+            )}
+          />
+        )}
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
+  container: {
     flex: 1,
   },
-  contentContainer: {
-    flexDirection: 'row',
+  safeArea: {
+    flex: 1,
+    paddingHorizontal: Spacing.four,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
+  header: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: Spacing.three,
   },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+  title: {
+    fontSize: 28,
+    lineHeight: 32,
   },
-  collapsibleContent: {
-    alignItems: 'center',
+  error: {
+    color: '#d33',
+    marginBottom: Spacing.two,
   },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
+  form: {
+    gap: Spacing.two,
+    padding: Spacing.three,
     borderRadius: Spacing.three,
-    marginTop: Spacing.two,
+    marginBottom: Spacing.three,
   },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
+  input: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#8884',
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+  },
+  formActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.three,
+  },
+  loading: {
+    marginTop: Spacing.six,
+  },
+  listContent: {
+    paddingBottom: BottomTabInset + Spacing.three,
+    gap: Spacing.two,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: Spacing.six,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+  },
+  rowInfo: {
+    flex: 1,
+    gap: Spacing.half,
+  },
+  deleteText: {
+    color: '#d33',
   },
 });
