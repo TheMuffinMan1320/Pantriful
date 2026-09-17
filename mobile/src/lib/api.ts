@@ -193,3 +193,17 @@ export function generateRecipe(): Promise<Recipe> {
 export function markRecipeMade(id: string): Promise<Recipe> {
   return authedJson<Recipe>(`/recipes/${id}/mark-made`, { method: 'POST' });
 }
+
+export type IdentifiedItem = {
+  name: string | null;
+  category: string | null;
+  estimatedQuantity: number | null;
+  unit: string | null;
+};
+
+export function identifyPhoto(imageBase64: string, mediaType: string): Promise<IdentifiedItem> {
+  return authedJson<IdentifiedItem>('/inventory/identify-photo', {
+    method: 'POST',
+    body: JSON.stringify({ imageBase64, mediaType }),
+  });
+}

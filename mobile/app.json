@@ -41,6 +41,12 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.738084053265-4u0snai9ubmjo3m7fc0mplkjp6md9pr6"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Pantriful uses your camera to identify pantry items from a photo."
+        }
       ]
     ],
     "experiments": {

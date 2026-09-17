@@ -22,9 +22,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final PhotoIdentificationService photoIdentificationService;
 
-    public InventoryController(InventoryService inventoryService) {
+    public InventoryController(
+            InventoryService inventoryService, PhotoIdentificationService photoIdentificationService) {
         this.inventoryService = inventoryService;
+        this.photoIdentificationService = photoIdentificationService;
     }
 
     @GetMapping
@@ -51,6 +54,11 @@ public class InventoryController {
     public ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         inventoryService.delete(userId(jwt), id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/identify-photo")
+    public IdentifiedItem identifyPhoto(@Valid @RequestBody IdentifyPhotoRequest request) {
+        return photoIdentificationService.identify(request.imageBase64(), request.mediaType());
     }
 
     private UUID userId(Jwt jwt) {
