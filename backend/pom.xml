@@ -63,6 +63,11 @@
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>com.anthropic</groupId>
+			<artifactId>anthropic-java</artifactId>
+			<version>2.34.0</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.postgresql</groupId>
@@ -128,6 +133,9 @@
 							being exported in the shell; production still requires the
 							real environment variable, this only applies to test runs. -->
 						<JWT_SECRET>test-secret-that-is-only-used-for-automated-tests-1234567890</JWT_SECRET>
+						<!-- The AnthropicClient bean needs this property to resolve at context
+							startup; tests mock RecipeGenerationService so it's never actually used. -->
+						<ANTHROPIC_API_KEY>test-key-not-used-because-recipe-generation-is-mocked</ANTHROPIC_API_KEY>
 					</environmentVariables>
 				</configuration>
 			</plugin>

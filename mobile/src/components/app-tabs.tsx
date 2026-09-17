@@ -27,6 +27,15 @@ export default function AppTabs() {
           renderingMode="template"
         />
       </NativeTabs.Trigger>
+
+      {/* Reusing the home icon as a placeholder - no dedicated recipes icon asset exists yet. */}
+      <NativeTabs.Trigger name="recipes">
+        <NativeTabs.Trigger.Label>Recipes</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          src={require('@/assets/images/tabIcons/home.png')}
+          renderingMode="template"
+        />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

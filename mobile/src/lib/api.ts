@@ -156,3 +156,40 @@ export function updateInventoryItem(
 export function deleteInventoryItem(id: string): Promise<void> {
   return authedJson<void>(`/inventory/${id}`, { method: 'DELETE' });
 }
+
+export type RecipeIngredient = {
+  id: string;
+  inventoryItemId: string | null;
+  name: string;
+  quantity: number;
+  unit: string;
+};
+
+export type RecipeNutrition = {
+  caloriesPerServing: number | null;
+  proteinGrams: number | null;
+  carbsGrams: number | null;
+  fatGrams: number | null;
+};
+
+export type Recipe = {
+  id: string;
+  title: string;
+  instructions: string;
+  servings: number | null;
+  status: 'suggested' | 'made';
+  ingredients: RecipeIngredient[];
+  nutrition: RecipeNutrition | null;
+};
+
+export function listRecipes(): Promise<Recipe[]> {
+  return authedJson<Recipe[]>('/recipes');
+}
+
+export function generateRecipe(): Promise<Recipe> {
+  return authedJson<Recipe>('/recipes/generate', { method: 'POST' });
+}
+
+export function markRecipeMade(id: string): Promise<Recipe> {
+  return authedJson<Recipe>(`/recipes/${id}/mark-made`, { method: 'POST' });
+}
