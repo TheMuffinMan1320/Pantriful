@@ -19,8 +19,10 @@ import {
   deleteInventoryItem,
   identifyPhoto,
   listInventory,
+  parseReceipt,
   updateInventoryItem,
   type InventoryItem,
+  type ParsedLineItem,
 } from '@/lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -38,6 +40,10 @@ type FormState = {
 
 const emptyForm: FormState = { editingId: null, name: '', quantity: '1', unit: 'count', category: '' };
 
+type CameraMode = 'identify' | 'receipt';
+
+type ReviewLineItem = ParsedLineItem & { included: boolean };
+
 export default function InventoryScreen() {
   const { state: authState } = useAuth();
   const theme = useTheme();
@@ -47,9 +53,12 @@ export default function InventoryScreen() {
   const [form, setForm] = useState<FormState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraMode, setCameraMode] = useState<CameraMode>('identify');
   const [identifying, setIdentifying] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const [receiptReview, setReceiptReview] = useState<ReviewLineItem[] | null>(null);
+  const [applyingReceipt, setApplyingReceipt] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -102,16 +111,20 @@ export default function InventoryScreen() {
     }
   }, [form, load]);
 
-  const onOpenCamera = useCallback(async () => {
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (!result.granted) {
-        setError('Camera permission is required to add items by photo.');
-        return;
+  const onOpenCamera = useCallback(
+    async (mode: CameraMode) => {
+      if (!permission?.granted) {
+        const result = await requestPermission();
+        if (!result.granted) {
+          setError('Camera permission is required to add items by photo.');
+          return;
+        }
       }
-    }
-    setCameraOpen(true);
-  }, [permission, requestPermission]);
+      setCameraMode(mode);
+      setCameraOpen(true);
+    },
+    [permission, requestPermission],
+  );
 
   const onCapture = useCallback(async () => {
     if (!cameraRef.current) return;
@@ -131,6 +144,17 @@ export default function InventoryScreen() {
       if (!compressed.base64) throw new Error('Failed to compress photo');
 
       setCameraOpen(false);
+
+      if (cameraMode === 'receipt') {
+        const parsed = await parseReceipt(compressed.base64, 'image/jpeg');
+        if (parsed.items.length === 0) {
+          setError('Could not read any items on that receipt. Try again with a clearer shot.');
+          return;
+        }
+        setReceiptReview(parsed.items.map((item) => ({ ...item, included: true })));
+        return;
+      }
+
       const identified = await identifyPhoto(compressed.base64, 'image/jpeg');
       if (!identified.name) {
         setError('Could not identify an item in that photo. Try again with a clearer shot.');
@@ -145,11 +169,41 @@ export default function InventoryScreen() {
       });
     } catch (err) {
       setCameraOpen(false);
-      setError(err instanceof ApiError ? err.message : 'Failed to identify photo');
+      setError(err instanceof ApiError ? err.message : 'Failed to process photo');
     } finally {
       setIdentifying(false);
     }
+  }, [cameraMode]);
+
+  const toggleReviewItem = useCallback((index: number) => {
+    setReceiptReview((current) =>
+      current
+        ? current.map((item, i) => (i === index ? { ...item, included: !item.included } : item))
+        : current,
+    );
   }, []);
+
+  const onApplyReceipt = useCallback(async () => {
+    if (!receiptReview) return;
+    setApplyingReceipt(true);
+    try {
+      const toAdd = receiptReview.filter((item) => item.included);
+      for (const item of toAdd) {
+        await createInventoryItem({
+          name: item.name,
+          quantity: item.quantity ?? 1,
+          unit: item.unit ?? 'count',
+          category: item.category ?? null,
+        });
+      }
+      setReceiptReview(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to add receipt items');
+    } finally {
+      setApplyingReceipt(false);
+    }
+  }, [receiptReview, load]);
 
   const onDelete = useCallback(
     async (item: InventoryItem) => {
@@ -181,8 +235,11 @@ export default function InventoryScreen() {
             Pantry
           </ThemedText>
           <ThemedView style={styles.headerActions}>
-            <Pressable onPress={onOpenCamera} disabled={identifying}>
-              <ThemedText type="linkPrimary">{identifying ? 'Identifying…' : '📷 Photo'}</ThemedText>
+            <Pressable onPress={() => onOpenCamera('identify')} disabled={identifying}>
+              <ThemedText type="linkPrimary">{identifying ? 'Working…' : '📷 Photo'}</ThemedText>
+            </Pressable>
+            <Pressable onPress={() => onOpenCamera('receipt')} disabled={identifying}>
+              <ThemedText type="linkPrimary">🧾 Receipt</ThemedText>
             </Pressable>
             <Pressable onPress={() => setForm(emptyForm)}>
               <ThemedText type="linkPrimary">+ Add item</ThemedText>
@@ -194,6 +251,39 @@ export default function InventoryScreen() {
           <ThemedText type="small" style={styles.error}>
             {error}
           </ThemedText>
+        )}
+
+        {receiptReview && (
+          <ThemedView type="backgroundElement" style={styles.form}>
+            <ThemedText type="smallBold">Review receipt items</ThemedText>
+            {receiptReview.map((item, index) => (
+              <Pressable
+                key={`${item.name}-${index}`}
+                style={styles.reviewRow}
+                onPress={() => toggleReviewItem(index)}>
+                <ThemedText type="small">{item.included ? '☑' : '☐'}</ThemedText>
+                <ThemedView style={styles.rowInfo}>
+                  <ThemedText type="small">{item.name}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {item.quantity ?? 1} {item.unit ?? 'count'}
+                    {item.category ? ` · ${item.category}` : ''}
+                  </ThemedText>
+                </ThemedView>
+              </Pressable>
+            ))}
+            <ThemedView style={styles.formActions}>
+              <Pressable onPress={() => setReceiptReview(null)}>
+                <ThemedText type="link">Discard</ThemedText>
+              </Pressable>
+              <Pressable onPress={onApplyReceipt} disabled={applyingReceipt}>
+                <ThemedText type="linkPrimary">
+                  {applyingReceipt
+                    ? 'Adding…'
+                    : `Add ${receiptReview.filter((item) => item.included).length} items`}
+                </ThemedText>
+              </Pressable>
+            </ThemedView>
+          </ThemedView>
         )}
 
         <Modal visible={cameraOpen} animationType="slide">
@@ -367,6 +457,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: Spacing.three,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   loading: {
     marginTop: Spacing.six,

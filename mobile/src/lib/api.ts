@@ -207,3 +207,21 @@ export function identifyPhoto(imageBase64: string, mediaType: string): Promise<I
     body: JSON.stringify({ imageBase64, mediaType }),
   });
 }
+
+export type ParsedLineItem = {
+  name: string;
+  category: string | null;
+  quantity: number | null;
+  unit: string | null;
+};
+
+export type ParsedReceipt = {
+  items: ParsedLineItem[];
+};
+
+export function parseReceipt(imageBase64: string, mediaType: string): Promise<ParsedReceipt> {
+  return authedJson<ParsedReceipt>('/inventory/parse-receipt', {
+    method: 'POST',
+    body: JSON.stringify({ imageBase64, mediaType }),
+  });
+}

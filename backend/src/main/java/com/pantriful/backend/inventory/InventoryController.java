@@ -23,11 +23,15 @@ public class InventoryController {
 
     private final InventoryService inventoryService;
     private final PhotoIdentificationService photoIdentificationService;
+    private final ReceiptParsingService receiptParsingService;
 
     public InventoryController(
-            InventoryService inventoryService, PhotoIdentificationService photoIdentificationService) {
+            InventoryService inventoryService,
+            PhotoIdentificationService photoIdentificationService,
+            ReceiptParsingService receiptParsingService) {
         this.inventoryService = inventoryService;
         this.photoIdentificationService = photoIdentificationService;
+        this.receiptParsingService = receiptParsingService;
     }
 
     @GetMapping
@@ -59,6 +63,11 @@ public class InventoryController {
     @PostMapping("/identify-photo")
     public IdentifiedItem identifyPhoto(@Valid @RequestBody IdentifyPhotoRequest request) {
         return photoIdentificationService.identify(request.imageBase64(), request.mediaType());
+    }
+
+    @PostMapping("/parse-receipt")
+    public ParsedReceipt parseReceipt(@Valid @RequestBody IdentifyPhotoRequest request) {
+        return receiptParsingService.parse(request.imageBase64(), request.mediaType());
     }
 
     private UUID userId(Jwt jwt) {
