@@ -225,3 +225,19 @@ export function parseReceipt(imageBase64: string, mediaType: string): Promise<Pa
     body: JSON.stringify({ imageBase64, mediaType }),
   });
 }
+
+export type BarcodeLookupResult = {
+  found: boolean;
+  name: string | null;
+  brand: string | null;
+  category: string | null;
+  defaultUnit: string | null;
+  caloriesPer100g: number | null;
+  carbsPer100g: number | null;
+  fatPer100g: number | null;
+  proteinPer100g: number | null;
+};
+
+export function lookupBarcode(barcode: string): Promise<BarcodeLookupResult> {
+  return authedJson<BarcodeLookupResult>(`/inventory/lookup-barcode/${encodeURIComponent(barcode)}`);
+}

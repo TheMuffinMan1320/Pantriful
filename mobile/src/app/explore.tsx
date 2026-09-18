@@ -1,4 +1,4 @@
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -19,6 +19,7 @@ import {
   deleteInventoryItem,
   identifyPhoto,
   listInventory,
+  lookupBarcode,
   parseReceipt,
   updateInventoryItem,
   type InventoryItem,
@@ -40,7 +41,7 @@ type FormState = {
 
 const emptyForm: FormState = { editingId: null, name: '', quantity: '1', unit: 'count', category: '' };
 
-type CameraMode = 'identify' | 'receipt';
+type CameraMode = 'identify' | 'receipt' | 'barcode';
 
 type ReviewLineItem = ParsedLineItem & { included: boolean };
 
@@ -59,6 +60,7 @@ export default function InventoryScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [receiptReview, setReceiptReview] = useState<ReviewLineItem[] | null>(null);
   const [applyingReceipt, setApplyingReceipt] = useState(false);
+  const barcodeLockRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -121,10 +123,36 @@ export default function InventoryScreen() {
         }
       }
       setCameraMode(mode);
+      barcodeLockRef.current = false;
       setCameraOpen(true);
     },
     [permission, requestPermission],
   );
+
+  const onBarcodeScanned = useCallback(async (result: BarcodeScanningResult) => {
+    if (barcodeLockRef.current) return;
+    barcodeLockRef.current = true;
+    setCameraOpen(false);
+    setIdentifying(true);
+    try {
+      const found = await lookupBarcode(result.data);
+      if (!found.found) {
+        setError('Barcode not recognized. Try adding this item manually.');
+        return;
+      }
+      setForm({
+        editingId: null,
+        name: found.name ?? '',
+        quantity: '1',
+        unit: found.defaultUnit ?? 'count',
+        category: found.category ?? '',
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to look up barcode');
+    } finally {
+      setIdentifying(false);
+    }
+  }, []);
 
   const onCapture = useCallback(async () => {
     if (!cameraRef.current) return;
@@ -241,6 +269,9 @@ export default function InventoryScreen() {
             <Pressable onPress={() => onOpenCamera('receipt')} disabled={identifying}>
               <ThemedText type="linkPrimary">🧾 Receipt</ThemedText>
             </Pressable>
+            <Pressable onPress={() => onOpenCamera('barcode')} disabled={identifying}>
+              <ThemedText type="linkPrimary">🔖 Barcode</ThemedText>
+            </Pressable>
             <Pressable onPress={() => setForm(emptyForm)}>
               <ThemedText type="linkPrimary">+ Add item</ThemedText>
             </Pressable>
@@ -288,12 +319,26 @@ export default function InventoryScreen() {
 
         <Modal visible={cameraOpen} animationType="slide">
           <View style={styles.cameraContainer}>
-            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+            <CameraView
+              ref={cameraRef}
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              barcodeScannerSettings={
+                cameraMode === 'barcode'
+                  ? { barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }
+                  : undefined
+              }
+              onBarcodeScanned={cameraMode === 'barcode' ? onBarcodeScanned : undefined}
+            />
             <SafeAreaView style={styles.cameraControls}>
               <Pressable style={styles.cameraCancelButton} onPress={() => setCameraOpen(false)}>
                 <ThemedText style={styles.cameraCancelText}>Cancel</ThemedText>
               </Pressable>
-              <Pressable style={styles.captureButton} onPress={onCapture} />
+              {cameraMode === 'barcode' ? (
+                <ThemedText style={styles.cameraCancelText}>Point at a barcode</ThemedText>
+              ) : (
+                <Pressable style={styles.captureButton} onPress={onCapture} />
+              )}
             </SafeAreaView>
           </View>
         </Modal>
@@ -398,13 +443,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingVertical: Spacing.three,
+    gap: Spacing.two,
   },
   headerActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.three,
   },
   title: {

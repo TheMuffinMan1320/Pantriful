@@ -1,5 +1,7 @@
 package com.pantriful.backend.inventory;
 
+import com.pantriful.backend.catalog.BarcodeLookupResponse;
+import com.pantriful.backend.catalog.BarcodeLookupService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -24,14 +26,17 @@ public class InventoryController {
     private final InventoryService inventoryService;
     private final PhotoIdentificationService photoIdentificationService;
     private final ReceiptParsingService receiptParsingService;
+    private final BarcodeLookupService barcodeLookupService;
 
     public InventoryController(
             InventoryService inventoryService,
             PhotoIdentificationService photoIdentificationService,
-            ReceiptParsingService receiptParsingService) {
+            ReceiptParsingService receiptParsingService,
+            BarcodeLookupService barcodeLookupService) {
         this.inventoryService = inventoryService;
         this.photoIdentificationService = photoIdentificationService;
         this.receiptParsingService = receiptParsingService;
+        this.barcodeLookupService = barcodeLookupService;
     }
 
     @GetMapping
@@ -68,6 +73,11 @@ public class InventoryController {
     @PostMapping("/parse-receipt")
     public ParsedReceipt parseReceipt(@Valid @RequestBody IdentifyPhotoRequest request) {
         return receiptParsingService.parse(request.imageBase64(), request.mediaType());
+    }
+
+    @GetMapping("/lookup-barcode/{barcode}")
+    public BarcodeLookupResponse lookupBarcode(@PathVariable String barcode) {
+        return barcodeLookupService.lookup(barcode);
     }
 
     private UUID userId(Jwt jwt) {
