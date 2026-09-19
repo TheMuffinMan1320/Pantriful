@@ -80,6 +80,7 @@ export default function InventoryScreen() {
   const [applyingReceipt, setApplyingReceipt] = useState(false);
   const [dismissedLowStock, setDismissedLowStock] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const barcodeLockRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -291,7 +292,7 @@ export default function InventoryScreen() {
         <SafeAreaView style={styles.centered}>
           <Icon name="person.crop.circle.badge.questionmark" size={40} color={theme.textSecondary} />
           <ThemedText themeColor="textSecondary" style={styles.centeredText}>
-            Sign in on the Home tab to see your pantry.
+            Sign in on the Settings tab to see your pantry.
           </ThemedText>
         </SafeAreaView>
       </ThemedView>
@@ -316,28 +317,59 @@ export default function InventoryScreen() {
           <ThemedText type="title" style={styles.title}>
             Pantry
           </ThemedText>
-          <View style={styles.headerActions}>
-            <ActionButton
-              icon="camera.fill"
-              label={identifying ? 'Working' : 'Photo'}
-              onPress={() => onOpenCamera('identify')}
-              disabled={identifying}
-            />
-            <ActionButton
-              icon="text.document.fill"
-              label="Receipt"
-              onPress={() => onOpenCamera('receipt')}
-              disabled={identifying}
-            />
-            <ActionButton
-              icon="barcode.viewfinder"
-              label="Barcode"
-              onPress={() => onOpenCamera('barcode')}
-              disabled={identifying}
-            />
-            <ActionButton icon="plus" label="Add" onPress={() => setForm(emptyForm)} accent />
-          </View>
+          <Pressable
+            onPress={() => setAddMenuOpen(true)}
+            disabled={identifying}
+            hitSlop={6}
+            style={({ pressed }) => [styles.addButton, { backgroundColor: theme.accent }, pressed && styles.addButtonPressed]}>
+            {identifying ? (
+              <ActivityIndicator size="small" color={theme.accentText} />
+            ) : (
+              <Icon name="plus" size={22} color={theme.accentText} />
+            )}
+          </Pressable>
         </View>
+
+        <Modal visible={addMenuOpen} transparent animationType="fade" onRequestClose={() => setAddMenuOpen(false)}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setAddMenuOpen(false)}>
+            <Pressable style={styles.menuSheetWrap} onPress={(event) => event.stopPropagation()}>
+              <LabelCard style={styles.menuSheet}>
+                <MenuOption
+                  icon="square.and.pencil"
+                  label="Add manually"
+                  onPress={() => {
+                    setAddMenuOpen(false);
+                    setForm(emptyForm);
+                  }}
+                />
+                <MenuOption
+                  icon="camera.fill"
+                  label="Photo"
+                  onPress={() => {
+                    setAddMenuOpen(false);
+                    onOpenCamera('identify');
+                  }}
+                />
+                <MenuOption
+                  icon="text.document.fill"
+                  label="Receipt"
+                  onPress={() => {
+                    setAddMenuOpen(false);
+                    onOpenCamera('receipt');
+                  }}
+                />
+                <MenuOption
+                  icon="barcode.viewfinder"
+                  label="Barcode"
+                  onPress={() => {
+                    setAddMenuOpen(false);
+                    onOpenCamera('barcode');
+                  }}
+                />
+              </LabelCard>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {!hasNoItemsAtAll && (
           <View style={[styles.searchBar, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
@@ -577,36 +609,25 @@ export default function InventoryScreen() {
   );
 }
 
-function ActionButton({
+function MenuOption({
   icon,
   label,
   onPress,
-  disabled,
-  accent,
 }: {
   icon: Parameters<typeof Icon>[0]['name'];
   label: string;
   onPress: () => void;
-  disabled?: boolean;
-  accent?: boolean;
 }) {
   const theme = useTheme();
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
-      hitSlop={6}
-      style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}>
-      <View
-        style={[
-          styles.actionIconWrap,
-          { backgroundColor: accent ? theme.accent : theme.backgroundElement, borderColor: theme.border },
-        ]}>
-        <Icon name={icon} size={18} color={accent ? theme.accentText : theme.text} />
+      hitSlop={4}
+      style={({ pressed }) => [styles.menuOption, pressed && styles.menuOptionPressed]}>
+      <View style={[styles.menuIconWrap, { backgroundColor: theme.background, borderColor: theme.border }]}>
+        <Icon name={icon} size={18} color={theme.text} />
       </View>
-      <ThemedText type="label" themeColor="textSecondary">
-        {label}
-      </ThemedText>
+      <ThemedText type="default">{label}</ThemedText>
     </Pressable>
   );
 }
@@ -663,30 +684,52 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   header: {
-    paddingVertical: Spacing.three,
-    gap: Spacing.three,
-  },
-  headerActions: {
     flexDirection: 'row',
-    gap: Spacing.four,
-  },
-  actionButton: {
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: Spacing.one,
+    paddingVertical: Spacing.three,
   },
-  actionButtonPressed: {
-    opacity: 0.6,
+  title: {
+    fontSize: 30,
   },
-  actionIconWrap: {
+  addButton: {
     width: 44,
     height: 44,
+    borderRadius: Radius.label,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonPressed: {
+    opacity: 0.8,
+  },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  menuSheetWrap: {
+    padding: Spacing.four,
+    paddingBottom: Spacing.six,
+  },
+  menuSheet: {
+    gap: Spacing.one,
+  },
+  menuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  menuOptionPressed: {
+    opacity: 0.6,
+  },
+  menuIconWrap: {
+    width: 36,
+    height: 36,
     borderRadius: Radius.label,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  title: {
-    fontSize: 30,
   },
   cameraContainer: {
     flex: 1,

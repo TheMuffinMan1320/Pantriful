@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -79,7 +79,7 @@ export default function RecipesScreen() {
         <SafeAreaView style={styles.centered}>
           <Icon name="person.crop.circle.badge.questionmark" size={40} color={theme.textSecondary} />
           <ThemedText themeColor="textSecondary" style={styles.centeredText}>
-            Sign in on the Home tab to generate recipes.
+            Sign in on the Settings tab to generate recipes.
           </ThemedText>
         </SafeAreaView>
       </ThemedView>
@@ -172,7 +172,7 @@ export default function RecipesScreen() {
                   <ThemedText type="label" themeColor="textSecondary">
                     Instructions
                   </ThemedText>
-                  <ThemedText type="default">{item.instructions}</ThemedText>
+                  <InstructionSteps instructions={item.instructions} />
                 </View>
 
                 {item.nutrition && (
@@ -218,6 +218,71 @@ export default function RecipesScreen() {
         )}
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+// Recipes come back as one instructions string (usually newline-separated numbered steps);
+// this splits it into individual steps regardless of whether newlines survived and strips any
+// existing "1." / "-" markers, since each step gets its own tappable bullet instead.
+function parseInstructionSteps(instructions: string): string[] {
+  const byLine = instructions
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const lines =
+    byLine.length > 1
+      ? byLine
+      : instructions
+          .split(/(?=\d+[.)]\s)/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+
+  return lines.map((line) => line.replace(/^(?:\d+[.)]|[-•*])\s*/, '').trim()).filter(Boolean);
+}
+
+function InstructionSteps({ instructions }: { instructions: string }) {
+  const theme = useTheme();
+  const steps = useMemo(() => parseInstructionSteps(instructions), [instructions]);
+  const [completed, setCompleted] = useState<Set<number>>(new Set());
+
+  const toggleStep = useCallback((index: number) => {
+    setCompleted((current) => {
+      const next = new Set(current);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
+
+  return (
+    <View style={styles.stepsList}>
+      {steps.map((step, index) => {
+        const done = completed.has(index);
+        return (
+          <Pressable
+            key={index}
+            onPress={() => toggleStep(index)}
+            hitSlop={4}
+            style={({ pressed }) => [styles.stepRow, pressed && styles.stepRowPressed]}>
+            <Icon
+              name={done ? 'checkmark.circle.fill' : 'circle'}
+              size={18}
+              color={done ? theme.fresh : theme.textSecondary}
+            />
+            <ThemedText
+              type="default"
+              themeColor={done ? 'textSecondary' : 'text'}
+              style={[styles.stepText, done && styles.stepTextDone]}>
+              {step}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -306,6 +371,23 @@ const styles = StyleSheet.create({
   ingredientRow: {
     flexDirection: 'row',
     gap: Spacing.two,
+  },
+  stepsList: {
+    gap: Spacing.two,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+  },
+  stepRowPressed: {
+    opacity: 0.6,
+  },
+  stepText: {
+    flex: 1,
+  },
+  stepTextDone: {
+    textDecorationLine: 'line-through',
   },
   ingredientName: {
     flex: 1,

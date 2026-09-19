@@ -28,6 +28,11 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Recipes</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="fork.knife" />
       </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="settings">
+        <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="gearshape.fill" />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
