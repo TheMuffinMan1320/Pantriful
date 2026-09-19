@@ -10,9 +10,15 @@ import {
   StyleSheet,
   TextInput,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BarcodeRule } from '@/components/barcode-rule';
+import { Icon } from '@/components/icon';
+import { LabelCard } from '@/components/label-card';
+import { StampBadge } from '@/components/stamp-badge';
 import {
   ApiError,
   createInventoryItem,
@@ -27,7 +33,7 @@ import {
 } from '@/lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Spacing } from '@/constants/theme';
+import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -53,6 +59,10 @@ type CameraMode = 'identify' | 'receipt' | 'barcode';
 
 type ReviewLineItem = ParsedLineItem & { included: boolean };
 
+function isLowStock(item: InventoryItem): boolean {
+  return item.lowStockThreshold != null && item.quantity <= item.lowStockThreshold;
+}
+
 export default function InventoryScreen() {
   const { state: authState } = useAuth();
   const theme = useTheme();
@@ -68,6 +78,7 @@ export default function InventoryScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [receiptReview, setReceiptReview] = useState<ReviewLineItem[] | null>(null);
   const [applyingReceipt, setApplyingReceipt] = useState(false);
+  const [dismissedLowStock, setDismissedLowStock] = useState<Set<string>>(new Set());
   const barcodeLockRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -262,76 +273,104 @@ export default function InventoryScreen() {
     [load],
   );
 
+  const openEdit = useCallback((item: InventoryItem) => {
+    setForm({
+      editingId: item.id,
+      name: item.name,
+      quantity: String(item.quantity),
+      unit: item.unit,
+      category: item.category ?? '',
+      lowStockThreshold: item.lowStockThreshold != null ? String(item.lowStockThreshold) : '',
+    });
+  }, []);
+
   if (authState.status !== 'signedIn') {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.centered}>
-          <ThemedText>Sign in on the Home tab to see your pantry.</ThemedText>
+          <Icon name="person.crop.circle.badge.questionmark" size={40} color={theme.textSecondary} />
+          <ThemedText themeColor="textSecondary" style={styles.centeredText}>
+            Sign in on the Home tab to see your pantry.
+          </ThemedText>
         </SafeAreaView>
       </ThemedView>
     );
   }
 
+  const activeItems = (items ?? []).filter((item) => !dismissedLowStock.has(item.id) || !isLowStock(item));
+  const shelvedLowStock = (items ?? []).filter((item) => dismissedLowStock.has(item.id) && isLowStock(item));
+
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.header}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
           <ThemedText type="title" style={styles.title}>
             Pantry
           </ThemedText>
-          <ThemedView style={styles.headerActions}>
-            <Pressable onPress={() => onOpenCamera('identify')} disabled={identifying}>
-              <ThemedText type="linkPrimary">{identifying ? 'Working…' : '📷 Photo'}</ThemedText>
-            </Pressable>
-            <Pressable onPress={() => onOpenCamera('receipt')} disabled={identifying}>
-              <ThemedText type="linkPrimary">🧾 Receipt</ThemedText>
-            </Pressable>
-            <Pressable onPress={() => onOpenCamera('barcode')} disabled={identifying}>
-              <ThemedText type="linkPrimary">🔖 Barcode</ThemedText>
-            </Pressable>
-            <Pressable onPress={() => setForm(emptyForm)}>
-              <ThemedText type="linkPrimary">+ Add item</ThemedText>
-            </Pressable>
-          </ThemedView>
-        </ThemedView>
+          <View style={styles.headerActions}>
+            <ActionButton
+              icon="camera.fill"
+              label={identifying ? 'Working' : 'Photo'}
+              onPress={() => onOpenCamera('identify')}
+              disabled={identifying}
+            />
+            <ActionButton
+              icon="text.document.fill"
+              label="Receipt"
+              onPress={() => onOpenCamera('receipt')}
+              disabled={identifying}
+            />
+            <ActionButton
+              icon="barcode.viewfinder"
+              label="Barcode"
+              onPress={() => onOpenCamera('barcode')}
+              disabled={identifying}
+            />
+            <ActionButton icon="plus" label="Add" onPress={() => setForm(emptyForm)} accent />
+          </View>
+        </View>
 
         {error && (
-          <ThemedText type="small" style={styles.error}>
+          <ThemedText type="small" themeColor="danger" style={styles.error}>
             {error}
           </ThemedText>
         )}
 
         {receiptReview && (
-          <ThemedView type="backgroundElement" style={styles.form}>
-            <ThemedText type="smallBold">Review receipt items</ThemedText>
+          <LabelCard style={styles.form}>
+            <ThemedText type="subtitle">Review receipt</ThemedText>
             {receiptReview.map((item, index) => (
               <Pressable
                 key={`${item.name}-${index}`}
                 style={styles.reviewRow}
                 onPress={() => toggleReviewItem(index)}>
-                <ThemedText type="small">{item.included ? '☑' : '☐'}</ThemedText>
-                <ThemedView style={styles.rowInfo}>
-                  <ThemedText type="small">{item.name}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
+                <Icon
+                  name={item.included ? 'checkmark.circle.fill' : 'circle'}
+                  size={22}
+                  color={item.included ? theme.fresh : theme.textSecondary}
+                />
+                <View style={styles.rowInfo}>
+                  <ThemedText type="default">{item.name}</ThemedText>
+                  <ThemedText type="data" themeColor="textSecondary">
                     {item.quantity ?? 1} {item.unit ?? 'count'}
                     {item.category ? ` · ${item.category}` : ''}
                   </ThemedText>
-                </ThemedView>
+                </View>
               </Pressable>
             ))}
-            <ThemedView style={styles.formActions}>
-              <Pressable onPress={() => setReceiptReview(null)}>
+            <View style={styles.formActions}>
+              <Pressable onPress={() => setReceiptReview(null)} hitSlop={8}>
                 <ThemedText type="link">Discard</ThemedText>
               </Pressable>
-              <Pressable onPress={onApplyReceipt} disabled={applyingReceipt}>
+              <Pressable onPress={onApplyReceipt} disabled={applyingReceipt} hitSlop={8}>
                 <ThemedText type="linkPrimary">
                   {applyingReceipt
                     ? 'Adding…'
                     : `Add ${receiptReview.filter((item) => item.included).length} items`}
                 </ThemedText>
               </Pressable>
-            </ThemedView>
-          </ThemedView>
+            </View>
+          </LabelCard>
         )}
 
         <Modal visible={cameraOpen} animationType="slide">
@@ -361,97 +400,212 @@ export default function InventoryScreen() {
         </Modal>
 
         {form && (
-          <ThemedView type="backgroundElement" style={styles.form}>
-            <TextInput
-              placeholder="Name"
-              value={form.name}
-              onChangeText={(name) => setForm({ ...form, name })}
-              style={[styles.input, { color: theme.text }]}
-            />
-            <TextInput
-              placeholder="Quantity"
-              value={form.quantity}
-              onChangeText={(quantity) => setForm({ ...form, quantity })}
-              keyboardType="numeric"
-              style={[styles.input, { color: theme.text }]}
-            />
-            <TextInput
-              placeholder="Unit (e.g. count, lbs, gallon)"
-              value={form.unit}
-              onChangeText={(unit) => setForm({ ...form, unit })}
-              style={[styles.input, { color: theme.text }]}
-            />
-            <TextInput
-              placeholder="Category (optional)"
+          <LabelCard style={styles.form}>
+            <ThemedText type="subtitle">{form.editingId ? 'Edit item' : 'Add item'}</ThemedText>
+            <LabeledInput label="Name" value={form.name} onChangeText={(name) => setForm({ ...form, name })} />
+            <View style={styles.inputPair}>
+              <LabeledInput
+                label="Quantity"
+                value={form.quantity}
+                onChangeText={(quantity) => setForm({ ...form, quantity })}
+                keyboardType="numeric"
+                data
+                style={styles.inputFlex}
+              />
+              <LabeledInput
+                label="Unit"
+                value={form.unit}
+                onChangeText={(unit) => setForm({ ...form, unit })}
+                style={styles.inputFlex}
+              />
+            </View>
+            <LabeledInput
+              label="Category (optional)"
               value={form.category}
               onChangeText={(category) => setForm({ ...form, category })}
-              style={[styles.input, { color: theme.text }]}
             />
-            <TextInput
-              placeholder="Notify when quantity drops to (optional)"
+            <LabeledInput
+              label="Notify when quantity drops to (optional)"
               value={form.lowStockThreshold}
               onChangeText={(lowStockThreshold) => setForm({ ...form, lowStockThreshold })}
               keyboardType="numeric"
-              style={[styles.input, { color: theme.text }]}
+              data
             />
-            <ThemedView style={styles.formActions}>
-              <Pressable onPress={() => setForm(null)}>
+            <View style={styles.formActions}>
+              <Pressable onPress={() => setForm(null)} hitSlop={8}>
                 <ThemedText type="link">Cancel</ThemedText>
               </Pressable>
-              <Pressable onPress={submitForm} disabled={submitting}>
+              <Pressable onPress={submitForm} disabled={submitting} hitSlop={8}>
                 <ThemedText type="linkPrimary">{submitting ? 'Saving…' : 'Save'}</ThemedText>
               </Pressable>
-            </ThemedView>
-          </ThemedView>
+            </View>
+          </LabelCard>
         )}
 
         {items === null ? (
-          <ActivityIndicator style={styles.loading} />
+          <ActivityIndicator style={styles.loading} color={theme.accent} />
         ) : (
           <FlatList
-            data={items}
+            data={activeItems}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             ListEmptyComponent={
-              <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-                No items yet. Add your first one above.
-              </ThemedText>
+              <View style={styles.emptyState}>
+                <Icon name="shippingbox" size={40} color={theme.textSecondary} />
+                <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+                  Shelf's empty. Add your first item above.
+                </ThemedText>
+              </View>
             }
-            renderItem={({ item }) => (
-              <ThemedView type="backgroundElement" style={styles.row}>
-                <ThemedView style={styles.rowInfo}>
-                  <ThemedText type="smallBold">{item.name}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {item.quantity} {item.unit}
-                    {item.category ? ` · ${item.category}` : ''}
+            ListFooterComponent={
+              shelvedLowStock.length > 0 ? (
+                <View style={styles.tray}>
+                  <ThemedText type="label" themeColor="textSecondary">
+                    Set aside · {shelvedLowStock.length}
                   </ThemedText>
-                </ThemedView>
-                <Pressable
-                  onPress={() =>
-                    setForm({
-                      editingId: item.id,
-                      name: item.name,
-                      quantity: String(item.quantity),
-                      unit: item.unit,
-                      category: item.category ?? '',
-                      lowStockThreshold:
-                        item.lowStockThreshold != null ? String(item.lowStockThreshold) : '',
-                    })
-                  }>
-                  <ThemedText type="link">Edit</ThemedText>
-                </Pressable>
-                <Pressable onPress={() => onDelete(item)}>
-                  <ThemedText type="link" style={styles.deleteText}>
-                    Delete
-                  </ThemedText>
-                </Pressable>
-              </ThemedView>
-            )}
+                  {shelvedLowStock.map((item) => (
+                    <View key={item.id} style={styles.trayRow}>
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.trayName}>
+                        {item.name}
+                      </ThemedText>
+                      <Pressable
+                        onPress={() =>
+                          setDismissedLowStock((prev) => {
+                            const next = new Set(prev);
+                            next.delete(item.id);
+                            return next;
+                          })
+                        }
+                        hitSlop={8}>
+                        <ThemedText type="link">Restore</ThemedText>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : null
+            }
+            renderItem={({ item }) => {
+              const low = isLowStock(item);
+              return (
+                <LabelCard style={styles.row}>
+                  <View style={styles.rowTop}>
+                    <View style={styles.rowInfo}>
+                      <ThemedText
+                        type={low ? 'title' : 'smallBold'}
+                        style={low ? styles.lowStockName : undefined}
+                        numberOfLines={1}>
+                        {item.name}
+                      </ThemedText>
+                      <BarcodeRule seed={item.id} height={10} />
+                      <View style={styles.rowMeta}>
+                        <ThemedText type="data" themeColor="textSecondary">
+                          {item.quantity} {item.unit}
+                        </ThemedText>
+                        {item.category && (
+                          <ThemedText type="label" themeColor="textSecondary">
+                            {item.category}
+                          </ThemedText>
+                        )}
+                      </View>
+                    </View>
+                    {low && (
+                      <Pressable
+                        onPress={() => setDismissedLowStock((prev) => new Set(prev).add(item.id))}
+                        hitSlop={8}>
+                        <StampBadge label="LOW" />
+                      </Pressable>
+                    )}
+                  </View>
+                  <View style={styles.rowActions}>
+                    <Pressable onPress={() => openEdit(item)} hitSlop={8} style={styles.rowActionButton}>
+                      <Icon name="pencil" size={16} color={theme.textSecondary} />
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Edit
+                      </ThemedText>
+                    </Pressable>
+                    <Pressable onPress={() => onDelete(item)} hitSlop={8} style={styles.rowActionButton}>
+                      <Icon name="trash" size={16} color={theme.danger} />
+                      <ThemedText type="small" themeColor="danger">
+                        Delete
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                </LabelCard>
+              );
+            }}
           />
         )}
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+function ActionButton({
+  icon,
+  label,
+  onPress,
+  disabled,
+  accent,
+}: {
+  icon: Parameters<typeof Icon>[0]['name'];
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  accent?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={6}
+      style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}>
+      <View
+        style={[
+          styles.actionIconWrap,
+          { backgroundColor: accent ? theme.accent : theme.backgroundElement, borderColor: theme.border },
+        ]}>
+        <Icon name={icon} size={18} color={accent ? theme.accentText : theme.text} />
+      </View>
+      <ThemedText type="label" themeColor="textSecondary">
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+function LabeledInput({
+  label,
+  value,
+  onChangeText,
+  keyboardType,
+  data,
+  style,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  keyboardType?: 'numeric' | 'default';
+  data?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={style}>
+      <ThemedText type="label" themeColor="textSecondary" style={styles.inputLabel}>
+        {label}
+      </ThemedText>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        style={[
+          styles.input,
+          { color: theme.text, borderColor: theme.border, fontFamily: data ? 'SpaceMono_400Regular' : undefined },
+        ]}
+      />
+    </View>
   );
 }
 
@@ -467,19 +621,36 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.three,
+  },
+  centeredText: {
+    textAlign: 'center',
   },
   header: {
     paddingVertical: Spacing.three,
-    gap: Spacing.two,
+    gap: Spacing.three,
   },
   headerActions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.three,
+    gap: Spacing.four,
+  },
+  actionButton: {
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  actionButtonPressed: {
+    opacity: 0.6,
+  },
+  actionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.label,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 30,
   },
   cameraContainer: {
     flex: 1,
@@ -507,26 +678,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.3)',
   },
   error: {
-    color: '#d33',
     marginBottom: Spacing.two,
   },
   form: {
-    gap: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: Spacing.three,
+    gap: Spacing.three,
     marginBottom: Spacing.three,
+  },
+  inputPair: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+  },
+  inputFlex: {
+    flex: 1,
+  },
+  inputLabel: {
+    marginBottom: Spacing.half,
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#8884',
-    borderRadius: Spacing.two,
+    borderRadius: Radius.label,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.two,
+    fontSize: 16,
   },
   formActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: Spacing.three,
+    gap: Spacing.four,
   },
   reviewRow: {
     flexDirection: 'row',
@@ -538,24 +716,58 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: BottomTabInset + Spacing.three,
+    gap: Spacing.three,
+  },
+  emptyState: {
+    alignItems: 'center',
     gap: Spacing.two,
+    marginTop: Spacing.six,
   },
   emptyText: {
     textAlign: 'center',
-    marginTop: Spacing.six,
+  },
+  tray: {
+    paddingTop: Spacing.three,
+    gap: Spacing.two,
+  },
+  trayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  trayName: {
+    flex: 1,
+    textDecorationLine: 'line-through',
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Spacing.three,
+  },
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.three,
   },
   rowInfo: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.one,
   },
-  deleteText: {
-    color: '#d33',
+  lowStockName: {
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  rowMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.half,
+  },
+  rowActions: {
+    flexDirection: 'row',
+    gap: Spacing.four,
+  },
+  rowActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
 });

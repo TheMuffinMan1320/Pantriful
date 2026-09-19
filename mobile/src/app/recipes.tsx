@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BarcodeRule } from '@/components/barcode-rule';
+import { Icon } from '@/components/icon';
+import { LabelCard } from '@/components/label-card';
+import { StampBadge } from '@/components/stamp-badge';
 import { ApiError, generateRecipe, listRecipes, markRecipeMade, type Recipe } from '@/lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Spacing } from '@/constants/theme';
+import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function RecipesScreen() {
   const { state: authState } = useAuth();
+  const theme = useTheme();
   const [recipes, setRecipes] = useState<Recipe[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -71,7 +77,10 @@ export default function RecipesScreen() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.centered}>
-          <ThemedText>Sign in on the Home tab to generate recipes.</ThemedText>
+          <Icon name="person.crop.circle.badge.questionmark" size={40} color={theme.textSecondary} />
+          <ThemedText themeColor="textSecondary" style={styles.centeredText}>
+            Sign in on the Home tab to generate recipes.
+          </ThemedText>
         </SafeAreaView>
       </ThemedView>
     );
@@ -80,23 +89,37 @@ export default function RecipesScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.header}>
+        <View style={styles.header}>
           <ThemedText type="title" style={styles.title}>
             Recipes
           </ThemedText>
-          <Pressable onPress={onGenerate} disabled={generating}>
-            <ThemedText type="linkPrimary">{generating ? 'Generating…' : '+ Generate'}</ThemedText>
+          <Pressable
+            onPress={onGenerate}
+            disabled={generating}
+            style={({ pressed }) => [
+              styles.generateButton,
+              { backgroundColor: theme.accent },
+              pressed && styles.generateButtonPressed,
+            ]}>
+            {generating ? (
+              <ActivityIndicator size="small" color={theme.accentText} />
+            ) : (
+              <Icon name="sparkles" size={16} color={theme.accentText} />
+            )}
+            <ThemedText type="linkPrimary" style={{ color: theme.accentText }}>
+              {generating ? 'Generating' : 'Generate'}
+            </ThemedText>
           </Pressable>
-        </ThemedView>
+        </View>
 
         {error && (
-          <ThemedText type="small" style={styles.error}>
+          <ThemedText type="small" themeColor="danger" style={styles.error}>
             {error}
           </ThemedText>
         )}
 
         {recipes === null ? (
-          <ActivityIndicator style={styles.loading} />
+          <ActivityIndicator style={styles.loading} color={theme.accent} />
         ) : (
           <FlatList
             data={recipes}
@@ -104,61 +127,108 @@ export default function RecipesScreen() {
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             ListEmptyComponent={
-              <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-                No recipes yet. Generate one from your current pantry.
-              </ThemedText>
+              <View style={styles.emptyState}>
+                <Icon name="fork.knife" size={40} color={theme.textSecondary} />
+                <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+                  No recipes yet. Generate one from your current pantry.
+                </ThemedText>
+              </View>
             }
             renderItem={({ item }) => (
-              <ThemedView type="backgroundElement" style={styles.card}>
-                <ThemedView style={styles.cardHeader}>
-                  <ThemedText type="smallBold">{item.title}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {item.status === 'made' ? 'Made' : 'Suggested'}
-                    {item.servings ? ` · ${item.servings} servings` : ''}
-                  </ThemedText>
-                </ThemedView>
+              <LabelCard style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardHeaderText}>
+                    <ThemedText type="subtitle" numberOfLines={2}>
+                      {item.title}
+                    </ThemedText>
+                    {item.servings && (
+                      <ThemedText type="data" themeColor="textSecondary">
+                        Serves {item.servings}
+                      </ThemedText>
+                    )}
+                  </View>
+                  {item.status === 'made' && <StampBadge label="MADE" color={theme.fresh} />}
+                </View>
 
-                <ThemedText type="smallBold" style={styles.sectionLabel}>
-                  Ingredients
-                </ThemedText>
-                {item.ingredients.map((ingredient) => (
-                  <ThemedText key={ingredient.id} type="small" themeColor="textSecondary">
-                    {ingredient.quantity} {ingredient.unit} {ingredient.name}
-                  </ThemedText>
-                ))}
+                <BarcodeRule seed={item.id} />
 
-                <ThemedText type="smallBold" style={styles.sectionLabel}>
-                  Instructions
-                </ThemedText>
-                <ThemedText type="small">{item.instructions}</ThemedText>
+                <View style={styles.section}>
+                  <ThemedText type="label" themeColor="textSecondary">
+                    Ingredients
+                  </ThemedText>
+                  {item.ingredients.map((ingredient) => (
+                    <View key={ingredient.id} style={styles.ingredientRow}>
+                      <ThemedText type="dataBold">
+                        {ingredient.quantity} {ingredient.unit}
+                      </ThemedText>
+                      <ThemedText type="default" style={styles.ingredientName}>
+                        {ingredient.name}
+                      </ThemedText>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.section}>
+                  <ThemedText type="label" themeColor="textSecondary">
+                    Instructions
+                  </ThemedText>
+                  <ThemedText type="default">{item.instructions}</ThemedText>
+                </View>
 
                 {item.nutrition && (
-                  <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-                    {item.nutrition.caloriesPerServing != null
-                      ? `${item.nutrition.caloriesPerServing} cal`
-                      : ''}
-                    {item.nutrition.proteinGrams != null ? ` · ${item.nutrition.proteinGrams}g protein` : ''}
-                    {item.nutrition.carbsGrams != null ? ` · ${item.nutrition.carbsGrams}g carbs` : ''}
-                    {item.nutrition.fatGrams != null ? ` · ${item.nutrition.fatGrams}g fat` : ''}
-                  </ThemedText>
+                  <View style={styles.section}>
+                    <ThemedText type="label" themeColor="textSecondary">
+                      Nutrition, per serving
+                    </ThemedText>
+                    <View style={styles.nutritionRow}>
+                      {item.nutrition.caloriesPerServing != null && (
+                        <NutritionStat value={item.nutrition.caloriesPerServing} unit="cal" />
+                      )}
+                      {item.nutrition.proteinGrams != null && (
+                        <NutritionStat value={item.nutrition.proteinGrams} unit="g protein" />
+                      )}
+                      {item.nutrition.carbsGrams != null && (
+                        <NutritionStat value={item.nutrition.carbsGrams} unit="g carbs" />
+                      )}
+                      {item.nutrition.fatGrams != null && (
+                        <NutritionStat value={item.nutrition.fatGrams} unit="g fat" />
+                      )}
+                    </View>
+                  </View>
                 )}
 
                 {item.status !== 'made' && (
                   <Pressable
-                    style={styles.markMadeButton}
                     onPress={() => onMarkMade(item)}
-                    disabled={markingId === item.id}>
-                    <ThemedText type="linkPrimary">
+                    disabled={markingId === item.id}
+                    style={({ pressed }) => [
+                      styles.markMadeButton,
+                      { borderColor: theme.fresh },
+                      pressed && styles.markMadeButtonPressed,
+                    ]}>
+                    <Icon name="checkmark.seal" size={16} color={theme.fresh} />
+                    <ThemedText type="linkPrimary" style={{ color: theme.fresh }}>
                       {markingId === item.id ? 'Marking…' : 'Mark as made'}
                     </ThemedText>
                   </Pressable>
                 )}
-              </ThemedView>
+              </LabelCard>
             )}
           />
         )}
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+function NutritionStat({ value, unit }: { value: number; unit: string }) {
+  return (
+    <View style={styles.nutritionStat}>
+      <ThemedText type="dataBold">{value}</ThemedText>
+      <ThemedText type="label" themeColor="textSecondary">
+        {unit}
+      </ThemedText>
+    </View>
   );
 }
 
@@ -174,6 +244,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.three,
+  },
+  centeredText: {
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -182,11 +256,20 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
   },
   title: {
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 30,
+  },
+  generateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.label,
+  },
+  generateButtonPressed: {
+    opacity: 0.85,
   },
   error: {
-    color: '#d33',
     marginBottom: Spacing.two,
   },
   loading: {
@@ -196,25 +279,56 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.three,
     gap: Spacing.three,
   },
-  emptyText: {
-    textAlign: 'center',
+  emptyState: {
+    alignItems: 'center',
+    gap: Spacing.two,
     marginTop: Spacing.six,
   },
+  emptyText: {
+    textAlign: 'center',
+  },
   card: {
-    padding: Spacing.three,
-    borderRadius: Spacing.three,
-    gap: Spacing.half,
+    gap: Spacing.three,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
   },
-  sectionLabel: {
-    marginTop: Spacing.two,
+  cardHeaderText: {
+    flex: 1,
+    gap: Spacing.half,
+  },
+  section: {
+    gap: Spacing.one,
+  },
+  ingredientRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  ingredientName: {
+    flex: 1,
+  },
+  nutritionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.four,
+  },
+  nutritionStat: {
+    gap: Spacing.half,
   },
   markMadeButton: {
-    marginTop: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
     alignSelf: 'flex-start',
+    borderWidth: 1.5,
+    borderRadius: Radius.label,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+  },
+  markMadeButtonPressed: {
+    opacity: 0.7,
   },
 });

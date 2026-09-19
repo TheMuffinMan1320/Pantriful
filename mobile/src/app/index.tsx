@@ -1,48 +1,74 @@
 import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
-import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BarcodeRule } from '@/components/barcode-rule';
+import { LabelCard } from '@/components/label-card';
+import { StampBadge } from '@/components/stamp-badge';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function HomeScreen() {
   const { state, error, signIn, signOut } = useAuth();
+  const theme = useTheme();
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="title" style={styles.title}>
-          Pantriful
-        </ThemedText>
+        <View style={styles.wordmarkBlock}>
+          <ThemedText type="title" style={styles.wordmark}>
+            PANTRIFUL
+          </ThemedText>
+          <BarcodeRule seed="pantriful-home" height={16} />
+          <ThemedText type="label" themeColor="textSecondary" style={styles.tagline}>
+            Kitchen inventory, tracked and dated
+          </ThemedText>
+        </View>
 
-        {state.status === 'loading' && <ActivityIndicator />}
+        {state.status === 'loading' && <ActivityIndicator color={theme.accent} />}
 
         {state.status === 'signedOut' && (
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText>Sign in to see your pantry.</ThemedText>
+          <LabelCard style={styles.card}>
+            <ThemedText type="label" themeColor="textSecondary">
+              Status
+            </ThemedText>
+            <ThemedText type="subtitle">Sign in to see your pantry</ThemedText>
             <GoogleSigninButton
               size={GoogleSigninButton.Size.Wide}
               color={GoogleSigninButton.Color.Dark}
               onPress={signIn}
+              style={styles.googleButton}
             />
             {error && (
-              <ThemedText type="small" style={styles.error}>
+              <ThemedText type="small" themeColor="danger">
                 {error}
               </ThemedText>
             )}
-          </ThemedView>
+          </LabelCard>
         )}
 
         {state.status === 'signedIn' && (
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle">Signed in</ThemedText>
-            <ThemedText>{state.user.email}</ThemedText>
-            <Pressable onPress={signOut}>
+          <LabelCard style={styles.card}>
+            <View style={styles.signedInRow}>
+              <View style={styles.signedInInfo}>
+                <ThemedText type="label" themeColor="textSecondary">
+                  Status
+                </ThemedText>
+                <ThemedText type="subtitle">Signed in</ThemedText>
+                <ThemedText type="data" themeColor="textSecondary">
+                  {state.user.email}
+                </ThemedText>
+              </View>
+              <StampBadge label="ACTIVE" color={theme.fresh} />
+            </View>
+            <BarcodeRule seed={state.user.email} />
+            <Pressable onPress={signOut} hitSlop={8}>
               <ThemedText type="linkPrimary">Sign out</ThemedText>
             </Pressable>
-          </ThemedView>
+          </LabelCard>
         )}
       </SafeAreaView>
     </ThemedView>
@@ -60,22 +86,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.four,
+    gap: Spacing.five,
     paddingBottom: BottomTabInset + Spacing.three,
     maxWidth: MaxContentWidth,
+    alignSelf: 'stretch',
   },
-  title: {
-    textAlign: 'center',
+  wordmarkBlock: {
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  wordmark: {
+    letterSpacing: 2,
+  },
+  tagline: {
+    textTransform: 'none',
+    letterSpacing: 0.2,
   },
   card: {
     gap: Spacing.three,
     alignSelf: 'stretch',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
   },
-  error: {
-    color: '#d33',
+  googleButton: {
+    alignSelf: 'flex-start',
+  },
+  signedInRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  signedInInfo: {
+    gap: Spacing.half,
+    flex: 1,
   },
 });

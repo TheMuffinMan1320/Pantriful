@@ -1,6 +1,8 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Design direction: Konbini Label System.
+ * See PRODUCT.md and DESIGN.md for the full contract. Every surface reads as a printed
+ * inventory label — barcode rules, a stamped date/status mark, dense precise data type —
+ * on a warm paper ground with one disciplined stamp-ink accent.
  */
 
 import '@/global.css';
@@ -9,32 +11,45 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    // Kraft-toned canvas the label cards sit on top of.
+    background: '#F1EAD9',
+    // Brighter label-stock white for cards, so they read as paper sitting on the canvas.
+    backgroundElement: '#FFFCF4',
+    backgroundSelected: '#ECE0C3',
+    text: '#221D16',
+    textSecondary: '#655D4D',
+    border: '#DCD1B4',
+    // Stamp-ink red: the one accent, used deliberately (primary actions, urgency, marks).
+    accent: '#BE3A26',
+    accentText: '#FFFCF4',
+    // Secondary functional color for "fresh / good" states only - never a second identity color.
+    fresh: '#3A6244',
+    danger: '#BE3A26',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    background: '#17130E',
+    backgroundElement: '#241E17',
+    backgroundSelected: '#332A1E',
+    text: '#F5EFE2',
+    textSecondary: '#AFA48C',
+    border: '#3A3226',
+    accent: '#DD6448',
+    accentText: '#17130E',
+    fresh: '#6FA47D',
+    danger: '#DD6448',
   },
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
+// Space Grotesk carries every display/heading/label moment; Space Mono carries every
+// number a user reads as data (quantity, price, date, threshold) - the two together are
+// the "printed label" voice. Body copy stays on the system font for dense-paragraph legibility.
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
@@ -51,6 +66,18 @@ export const Fonts = Platform.select({
   },
 });
 
+export const DisplayFont = {
+  regular: 'SpaceGrotesk_400Regular',
+  medium: 'SpaceGrotesk_500Medium',
+  semibold: 'SpaceGrotesk_600SemiBold',
+  bold: 'SpaceGrotesk_700Bold',
+} as const;
+
+export const DataFont = {
+  regular: 'SpaceMono_400Regular',
+  bold: 'SpaceMono_700Bold',
+} as const;
+
 export const Spacing = {
   half: 2,
   one: 4,
@@ -59,6 +86,13 @@ export const Spacing = {
   four: 24,
   five: 32,
   six: 64,
+} as const;
+
+// Small radius, not a pill - real printed labels and shelf tags have a slight corner, not
+// a fully rounded rect.
+export const Radius = {
+  label: 6,
+  stamp: 999,
 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;

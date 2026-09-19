@@ -1,10 +1,21 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { Fonts, ThemeColor } from '@/constants/theme';
+import { DataFont, DisplayFont, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  type?:
+    | 'default'
+    | 'title'
+    | 'small'
+    | 'smallBold'
+    | 'subtitle'
+    | 'link'
+    | 'linkPrimary'
+    | 'code'
+    | 'label'
+    | 'data'
+    | 'dataBold';
   themeColor?: ThemeColor;
 };
 
@@ -21,8 +32,11 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
         type === 'smallBold' && styles.smallBold,
         type === 'subtitle' && styles.subtitle,
         type === 'link' && styles.link,
-        type === 'linkPrimary' && styles.linkPrimary,
+        type === 'linkPrimary' && [styles.linkPrimary, { color: theme.accent }],
         type === 'code' && styles.code,
+        type === 'label' && styles.label,
+        type === 'data' && styles.data,
+        type === 'dataBold' && styles.dataBold,
         style,
       ]}
       {...rest}
@@ -34,40 +48,57 @@ const styles = StyleSheet.create({
   small: {
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: 500,
   },
   smallBold: {
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: 700,
+    fontFamily: DisplayFont.semibold,
   },
   default: {
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: 500,
   },
+  // Item names, card headers: the display voice.
   title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
+    fontSize: 30,
+    lineHeight: 34,
+    fontFamily: DisplayFont.bold,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
+    fontSize: 20,
+    lineHeight: 26,
+    fontFamily: DisplayFont.semibold,
   },
   link: {
-    lineHeight: 30,
-    fontSize: 14,
+    lineHeight: 22,
+    fontSize: 15,
   },
   linkPrimary: {
-    lineHeight: 30,
-    fontSize: 14,
-    color: '#3c87f7',
+    lineHeight: 22,
+    fontSize: 15,
+    fontFamily: DisplayFont.semibold,
   },
   code: {
-    fontFamily: Fonts.mono,
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
+    fontFamily: DataFont.regular,
     fontSize: 12,
+  },
+  // Small caps-style field label above a data value (e.g. "QTY", "EXP").
+  label: {
+    fontFamily: DisplayFont.medium,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
+  },
+  // Quantities, dates, prices, thresholds - every number the user reads as data.
+  data: {
+    fontFamily: DataFont.regular,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  dataBold: {
+    fontFamily: DataFont.bold,
+    fontSize: 15,
+    lineHeight: 20,
   },
 });
