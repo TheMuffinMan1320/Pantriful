@@ -37,9 +37,17 @@ type FormState = {
   quantity: string;
   unit: string;
   category: string;
+  lowStockThreshold: string;
 };
 
-const emptyForm: FormState = { editingId: null, name: '', quantity: '1', unit: 'count', category: '' };
+const emptyForm: FormState = {
+  editingId: null,
+  name: '',
+  quantity: '1',
+  unit: 'count',
+  category: '',
+  lowStockThreshold: '',
+};
 
 type CameraMode = 'identify' | 'receipt' | 'barcode';
 
@@ -91,6 +99,12 @@ export default function InventoryScreen() {
       setError('Enter a name and a non-negative quantity.');
       return;
     }
+    const trimmedThreshold = form.lowStockThreshold.trim();
+    const lowStockThreshold = trimmedThreshold ? Number(trimmedThreshold) : null;
+    if (lowStockThreshold !== null && (Number.isNaN(lowStockThreshold) || lowStockThreshold < 0)) {
+      setError('Low-stock threshold must be a non-negative number, or left blank.');
+      return;
+    }
     setSubmitting(true);
     try {
       const input = {
@@ -98,6 +112,7 @@ export default function InventoryScreen() {
         quantity,
         unit: form.unit.trim() || 'count',
         category: form.category.trim() || null,
+        lowStockThreshold,
       };
       if (form.editingId) {
         await updateInventoryItem(form.editingId, input);
@@ -146,6 +161,7 @@ export default function InventoryScreen() {
         quantity: '1',
         unit: found.defaultUnit ?? 'count',
         category: found.category ?? '',
+        lowStockThreshold: '',
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to look up barcode');
@@ -194,6 +210,7 @@ export default function InventoryScreen() {
         quantity: identified.estimatedQuantity ? String(identified.estimatedQuantity) : '1',
         unit: identified.unit ?? 'count',
         category: identified.category ?? '',
+        lowStockThreshold: '',
       });
     } catch (err) {
       setCameraOpen(false);
@@ -370,6 +387,13 @@ export default function InventoryScreen() {
               onChangeText={(category) => setForm({ ...form, category })}
               style={[styles.input, { color: theme.text }]}
             />
+            <TextInput
+              placeholder="Notify when quantity drops to (optional)"
+              value={form.lowStockThreshold}
+              onChangeText={(lowStockThreshold) => setForm({ ...form, lowStockThreshold })}
+              keyboardType="numeric"
+              style={[styles.input, { color: theme.text }]}
+            />
             <ThemedView style={styles.formActions}>
               <Pressable onPress={() => setForm(null)}>
                 <ThemedText type="link">Cancel</ThemedText>
@@ -411,6 +435,8 @@ export default function InventoryScreen() {
                       quantity: String(item.quantity),
                       unit: item.unit,
                       category: item.category ?? '',
+                      lowStockThreshold:
+                        item.lowStockThreshold != null ? String(item.lowStockThreshold) : '',
                     })
                   }>
                   <ThemedText type="link">Edit</ThemedText>

@@ -2,6 +2,7 @@ package com.pantriful.backend.recipe;
 
 import com.pantriful.backend.inventory.InventoryItem;
 import com.pantriful.backend.inventory.InventoryItemRepository;
+import com.pantriful.backend.notification.LowStockCheckService;
 import com.pantriful.backend.user.User;
 import com.pantriful.backend.user.UserRepository;
 import java.math.BigDecimal;
@@ -23,6 +24,7 @@ public class RecipeService {
     private final InventoryItemRepository inventoryItemRepository;
     private final UserRepository userRepository;
     private final RecipeGenerationService recipeGenerationService;
+    private final LowStockCheckService lowStockCheckService;
 
     public RecipeService(
             RecipeRepository recipeRepository,
@@ -30,13 +32,15 @@ public class RecipeService {
             RecipeNutritionRepository recipeNutritionRepository,
             InventoryItemRepository inventoryItemRepository,
             UserRepository userRepository,
-            RecipeGenerationService recipeGenerationService) {
+            RecipeGenerationService recipeGenerationService,
+            LowStockCheckService lowStockCheckService) {
         this.recipeRepository = recipeRepository;
         this.recipeIngredientRepository = recipeIngredientRepository;
         this.recipeNutritionRepository = recipeNutritionRepository;
         this.inventoryItemRepository = inventoryItemRepository;
         this.userRepository = userRepository;
         this.recipeGenerationService = recipeGenerationService;
+        this.lowStockCheckService = lowStockCheckService;
     }
 
     @Transactional(readOnly = true)
@@ -92,6 +96,7 @@ public class RecipeService {
                 continue; // untracked staple - nothing to decrement
             }
             item.setQuantity(item.getQuantity().subtract(ingredient.getQuantity()).max(BigDecimal.ZERO));
+            lowStockCheckService.checkItem(item);
         }
 
         recipe.setStatus("made");

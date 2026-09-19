@@ -112,6 +112,13 @@ export async function fetchMe(accessToken: string): Promise<MeResponse> {
   return response.json() as Promise<MeResponse>;
 }
 
+export function savePushToken(pushToken: string): Promise<void> {
+  return authedJson<void>('/me/push-token', {
+    method: 'POST',
+    body: JSON.stringify({ pushToken }),
+  });
+}
+
 export type InventoryItem = {
   id: string;
   name: string;

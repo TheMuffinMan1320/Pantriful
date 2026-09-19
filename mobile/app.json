@@ -47,7 +47,8 @@
         {
           "cameraPermission": "Pantriful uses your camera to identify pantry items from a photo."
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,

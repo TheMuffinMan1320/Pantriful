@@ -1,5 +1,6 @@
 package com.pantriful.backend.inventory;
 
+import com.pantriful.backend.notification.LowStockCheckService;
 import com.pantriful.backend.user.User;
 import com.pantriful.backend.user.UserRepository;
 import java.util.List;
@@ -14,10 +15,15 @@ public class InventoryService {
 
     private final InventoryItemRepository inventoryItemRepository;
     private final UserRepository userRepository;
+    private final LowStockCheckService lowStockCheckService;
 
-    public InventoryService(InventoryItemRepository inventoryItemRepository, UserRepository userRepository) {
+    public InventoryService(
+            InventoryItemRepository inventoryItemRepository,
+            UserRepository userRepository,
+            LowStockCheckService lowStockCheckService) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.userRepository = userRepository;
+        this.lowStockCheckService = lowStockCheckService;
     }
 
     @Transactional(readOnly = true)
@@ -51,6 +57,8 @@ public class InventoryService {
         item.setCategory(request.category());
         item.setExpirationDate(request.expirationDate());
         item.setLowStockThreshold(request.lowStockThreshold());
+
+        lowStockCheckService.checkItem(item);
 
         return InventoryItemResponse.from(item);
     }

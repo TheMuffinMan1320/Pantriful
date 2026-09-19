@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 
 import { fetchMe, loginWithGoogle, refreshAndSaveTokens, type MeResponse } from '@/lib/api';
 import { GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '@/lib/config';
+import { registerForPushNotifications } from '@/lib/pushNotifications';
 import { clearTokens, loadTokens, saveTokens, type TokenPair } from '@/lib/tokenStorage';
 
 GoogleSignin.configure({
@@ -40,11 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const user = await fetchMe(tokens.accessToken);
       setState({ status: 'signedIn', user });
+      registerForPushNotifications();
     } catch {
       try {
         const refreshed = await refreshAndSaveTokens(tokens.refreshToken);
         const user = await fetchMe(refreshed.accessToken);
         setState({ status: 'signedIn', user });
+        registerForPushNotifications();
       } catch {
         setState({ status: 'signedOut' });
       }
@@ -71,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await saveTokens(tokens);
       const user = await fetchMe(tokens.accessToken);
       setState({ status: 'signedIn', user });
+      registerForPushNotifications();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed');
     }
