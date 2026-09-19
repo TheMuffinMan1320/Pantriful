@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -154,10 +155,47 @@ class RecipeControllerTest {
     }
 
     @Test
+    void delete_removesTheRecipe_andItDisappearsFromTheList() throws Exception {
+        User user = newUser("recipe-delete@example.com");
+        RecipeResponse recipe = generateRecipe(
+                user,
+                new GeneratedRecipe(
+                        "Toast",
+                        1,
+                        "Toast bread.",
+                        List.of(new GeneratedRecipe.GeneratedIngredient(null, "Bread", 2, "slices")),
+                        new GeneratedRecipe.GeneratedNutrition(150.0, 5.0, 28.0, 2.0)));
+
+        mockMvc.perform(delete("/recipes/{id}", recipe.id()).header("Authorization", "Bearer " + tokenFor(user)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/recipes").header("Authorization", "Bearer " + tokenFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/recipes/{id}", recipe.id()).header("Authorization", "Bearer " + tokenFor(user)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void delete_cannotDeleteAnotherUsersRecipe() throws Exception {
+        User owner = newUser("recipe-owner-delete@example.com");
+        User attacker = newUser("recipe-attacker-delete@example.com");
+
+        RecipeResponse recipe = generateRecipe(owner, new GeneratedRecipe("Toast", 1, "Toast bread.", List.of(), null));
+
+        mockMvc.perform(delete("/recipes/{id}", recipe.id()).header("Authorization", "Bearer " + tokenFor(attacker)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/recipes/{id}", recipe.id()).header("Authorization", "Bearer " + tokenFor(owner)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void recipes_requiresAuthentication() throws Exception {
         mockMvc.perform(get("/recipes")).andExpect(status().isUnauthorized());
         mockMvc.perform(post("/recipes/generate")).andExpect(status().isUnauthorized());
         mockMvc.perform(post("/recipes/{id}/mark-made", UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/recipes/{id}", UUID.randomUUID())).andExpect(status().isUnauthorized());
     }
 }

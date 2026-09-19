@@ -197,6 +197,10 @@ export function generateRecipe(): Promise<Recipe> {
   return authedJson<Recipe>('/recipes/generate', { method: 'POST' });
 }
 
+export function deleteRecipe(id: string): Promise<void> {
+  return authedJson<void>(`/recipes/${id}`, { method: 'DELETE' });
+}
+
 export function markRecipeMade(id: string): Promise<Recipe> {
   return authedJson<Recipe>(`/recipes/${id}/mark-made`, { method: 'POST' });
 }

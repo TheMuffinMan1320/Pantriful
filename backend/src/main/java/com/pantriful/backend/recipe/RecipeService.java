@@ -103,6 +103,16 @@ public class RecipeService {
         return toResponse(recipe);
     }
 
+    @Transactional
+    public void delete(UUID userId, UUID recipeId) {
+        Recipe recipe = findOwnedRecipe(userId, recipeId);
+        // Children are removed explicitly (rather than relying only on ON DELETE CASCADE) so Hibernate's
+        // persistence context never holds ingredients/nutrition pointing at a deleted recipe.
+        recipeIngredientRepository.deleteAll(recipeIngredientRepository.findByRecipeId(recipeId));
+        recipeNutritionRepository.findById(recipeId).ifPresent(recipeNutritionRepository::delete);
+        recipeRepository.delete(recipe);
+    }
+
     private InventoryItem matchInventoryItem(Map<UUID, InventoryItem> pantryById, String inventoryItemId) {
         if (inventoryItemId == null) {
             return null;

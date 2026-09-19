@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -9,7 +10,7 @@ import { LabelCard } from '@/components/label-card';
 import { StampBadge } from '@/components/stamp-badge';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -69,6 +70,7 @@ export default function HomeScreen() {
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.wordmarkBlock}>
+            <Logo />
             <ThemedText type="title" style={styles.wordmark}>
               PANTRIFUL
             </ThemedText>
@@ -86,7 +88,9 @@ export default function HomeScreen() {
                 Status
               </ThemedText>
               <ThemedText type="subtitle">Signed out</ThemedText>
-              <ThemedText themeColor="textSecondary">Sign in from the Settings tab to see your pantry.</ThemedText>
+              <ThemedText themeColor="textSecondary">
+                Sign in from the Settings tab to see your pantry.
+              </ThemedText>
             </LabelCard>
           )}
         </SafeAreaView>
@@ -104,6 +108,7 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.landingSafeArea} edges={['top', 'left', 'right']}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
           <View style={styles.wordmarkBlock}>
+            <Logo />
             <ThemedText type="title" style={styles.wordmark}>
               PANTRIFUL
             </ThemedText>
@@ -172,9 +177,22 @@ export default function HomeScreen() {
   );
 }
 
+function Logo() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.logoFrame, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+      <Image
+        source={require('@/assets/images/pantriful-logo.jpg')}
+        style={styles.logoImage}
+        contentFit="contain"
+      />
+    </View>
+  );
+}
+
 function RecommendationCard({ pick }: { pick: RankedRecipe }) {
   const theme = useTheme();
-  const { recipe, pantryMatchCount, pantryMatchTotal } = pick;
+  const { recipe, pantryMatchCount, pantryMatchTotal, missingIngredients } = pick;
 
   return (
     <Link href="/recipes" asChild>
@@ -199,6 +217,18 @@ function RecommendationCard({ pick }: { pick: RankedRecipe }) {
               ? `${pantryMatchCount}/${pantryMatchTotal} ingredients on hand`
               : 'No ingredients listed'}
           </ThemedText>
+          {missingIngredients.length > 0 && (
+            <View style={styles.needToBuy}>
+              <ThemedText type="label" themeColor="danger">
+                Need to buy
+              </ThemedText>
+              <ThemedText type="default">
+                {missingIngredients
+                  .map((ingredient) => `${ingredient.quantity} ${ingredient.unit} ${ingredient.name}`)
+                  .join(', ')}
+              </ThemedText>
+            </View>
+          )}
         </LabelCard>
       </Pressable>
     </Link>
@@ -239,6 +269,26 @@ const styles = StyleSheet.create({
   wordmarkBlock: {
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  needToBuy: {
+    gap: Spacing.half,
+  },
+  logoFrame: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.label,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  logoImage: {
+    width: 56,
+    height: 56,
   },
   wordmark: {
     letterSpacing: 2,

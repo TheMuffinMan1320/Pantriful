@@ -3,6 +3,8 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   FlatList,
   Modal,
   Pressable,
@@ -59,6 +61,10 @@ type CameraMode = 'identify' | 'receipt' | 'barcode';
 
 type ReviewLineItem = ParsedLineItem & { included: boolean };
 
+// A horizontal row of 4 labeled buttons doesn't fit next to the title on a phone-width screen -
+// the dropdown expands downward instead, where there's room for icon + label side by side.
+const MENU_DROPDOWN_WIDTH = 190;
+
 function isLowStock(item: InventoryItem): boolean {
   return item.lowStockThreshold != null && item.quantity <= item.lowStockThreshold;
 }
@@ -81,6 +87,16 @@ export default function InventoryScreen() {
   const [dismissedLowStock, setDismissedLowStock] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const menuAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(menuAnim, {
+      toValue: addMenuOpen ? 1 : 0,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [addMenuOpen, menuAnim]);
   const barcodeLockRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -313,28 +329,43 @@ export default function InventoryScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <View style={styles.header}>
+        {addMenuOpen && <Pressable style={styles.menuOverlay} onPress={() => setAddMenuOpen(false)} />}
+
+        <View style={styles.header} pointerEvents="box-none">
           <ThemedText type="title" style={styles.title}>
             Pantry
           </ThemedText>
-          <Pressable
-            onPress={() => setAddMenuOpen(true)}
-            disabled={identifying}
-            hitSlop={6}
-            style={({ pressed }) => [styles.addButton, { backgroundColor: theme.accent }, pressed && styles.addButtonPressed]}>
-            {identifying ? (
-              <ActivityIndicator size="small" color={theme.accentText} />
-            ) : (
-              <Icon name="plus" size={22} color={theme.accentText} />
-            )}
-          </Pressable>
-        </View>
+          <View style={styles.headerRight}>
+            <Pressable
+              onPress={() => setAddMenuOpen((open) => !open)}
+              disabled={identifying}
+              hitSlop={6}
+              style={({ pressed }) => [
+                styles.addButton,
+                { backgroundColor: theme.accent },
+                pressed && styles.addButtonPressed,
+              ]}>
+              {identifying ? (
+                <ActivityIndicator size="small" color={theme.accentText} />
+              ) : (
+                <Icon name={addMenuOpen ? 'xmark' : 'plus'} size={22} color={theme.accentText} />
+              )}
+            </Pressable>
 
-        <Modal visible={addMenuOpen} transparent animationType="fade" onRequestClose={() => setAddMenuOpen(false)}>
-          <Pressable style={styles.menuBackdrop} onPress={() => setAddMenuOpen(false)}>
-            <Pressable style={styles.menuSheetWrap} onPress={(event) => event.stopPropagation()}>
-              <LabelCard style={styles.menuSheet}>
-                <MenuOption
+            <Animated.View
+              pointerEvents={addMenuOpen ? 'auto' : 'none'}
+              style={[
+                styles.dropdown,
+                {
+                  opacity: menuAnim,
+                  transform: [
+                    { translateY: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) },
+                    { scale: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) },
+                  ],
+                },
+              ]}>
+              <LabelCard style={styles.dropdownCard}>
+                <MenuRow
                   icon="square.and.pencil"
                   label="Add manually"
                   onPress={() => {
@@ -342,7 +373,7 @@ export default function InventoryScreen() {
                     setForm(emptyForm);
                   }}
                 />
-                <MenuOption
+                <MenuRow
                   icon="camera.fill"
                   label="Photo"
                   onPress={() => {
@@ -350,7 +381,7 @@ export default function InventoryScreen() {
                     onOpenCamera('identify');
                   }}
                 />
-                <MenuOption
+                <MenuRow
                   icon="text.document.fill"
                   label="Receipt"
                   onPress={() => {
@@ -358,7 +389,7 @@ export default function InventoryScreen() {
                     onOpenCamera('receipt');
                   }}
                 />
-                <MenuOption
+                <MenuRow
                   icon="barcode.viewfinder"
                   label="Barcode"
                   onPress={() => {
@@ -367,9 +398,9 @@ export default function InventoryScreen() {
                   }}
                 />
               </LabelCard>
-            </Pressable>
-          </Pressable>
-        </Modal>
+            </Animated.View>
+          </View>
+        </View>
 
         {!hasNoItemsAtAll && (
           <View style={[styles.searchBar, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
@@ -609,7 +640,7 @@ export default function InventoryScreen() {
   );
 }
 
-function MenuOption({
+function MenuRow({
   icon,
   label,
   onPress,
@@ -623,10 +654,8 @@ function MenuOption({
     <Pressable
       onPress={onPress}
       hitSlop={4}
-      style={({ pressed }) => [styles.menuOption, pressed && styles.menuOptionPressed]}>
-      <View style={[styles.menuIconWrap, { backgroundColor: theme.background, borderColor: theme.border }]}>
-        <Icon name={icon} size={18} color={theme.text} />
-      </View>
+      style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}>
+      <Icon name={icon} size={18} color={theme.text} />
       <ThemedText type="default">{label}</ThemedText>
     </Pressable>
   );
@@ -688,9 +717,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: Spacing.three,
+    zIndex: 10,
   },
   title: {
     fontSize: 30,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuOverlay: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 5,
   },
   addButton: {
     width: 44,
@@ -702,34 +740,26 @@ const styles = StyleSheet.create({
   addButtonPressed: {
     opacity: 0.8,
   },
-  menuBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+  dropdown: {
+    position: 'absolute',
+    top: 52,
+    right: 0,
+    width: MENU_DROPDOWN_WIDTH,
   },
-  menuSheetWrap: {
-    padding: Spacing.four,
-    paddingBottom: Spacing.six,
+  dropdownCard: {
+    gap: Spacing.half,
+    padding: Spacing.two,
   },
-  menuSheet: {
-    gap: Spacing.one,
-  },
-  menuOption: {
+  menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
     paddingVertical: Spacing.two,
-  },
-  menuOptionPressed: {
-    opacity: 0.6,
-  },
-  menuIconWrap: {
-    width: 36,
-    height: 36,
+    paddingHorizontal: Spacing.two,
     borderRadius: Radius.label,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  menuRowPressed: {
+    opacity: 0.6,
   },
   cameraContainer: {
     flex: 1,

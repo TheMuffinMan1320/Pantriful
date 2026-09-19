@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BarcodeRule } from '@/components/barcode-rule';
 import { Icon } from '@/components/icon';
 import { LabelCard } from '@/components/label-card';
 import { StampBadge } from '@/components/stamp-badge';
-import { ApiError, generateRecipe, listRecipes, markRecipeMade, type Recipe } from '@/lib/api';
+import { ApiError, deleteRecipe, generateRecipe, listRecipes, markRecipeMade, type Recipe } from '@/lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
@@ -69,6 +69,28 @@ export default function RecipesScreen() {
       } finally {
         setMarkingId(null);
       }
+    },
+    [load],
+  );
+
+  const onDelete = useCallback(
+    (recipe: Recipe) => {
+      Alert.alert('Delete recipe?', `"${recipe.title}" will be permanently removed.`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setError(null);
+            try {
+              await deleteRecipe(recipe.id);
+              await load();
+            } catch (err) {
+              setError(err instanceof ApiError ? err.message : 'Failed to delete recipe');
+            }
+          },
+        },
+      ]);
     },
     [load],
   );
@@ -197,21 +219,29 @@ export default function RecipesScreen() {
                   </View>
                 )}
 
-                {item.status !== 'made' && (
-                  <Pressable
-                    onPress={() => onMarkMade(item)}
-                    disabled={markingId === item.id}
-                    style={({ pressed }) => [
-                      styles.markMadeButton,
-                      { borderColor: theme.fresh },
-                      pressed && styles.markMadeButtonPressed,
-                    ]}>
-                    <Icon name="checkmark.seal" size={16} color={theme.fresh} />
-                    <ThemedText type="linkPrimary" style={{ color: theme.fresh }}>
-                      {markingId === item.id ? 'Marking…' : 'Mark as made'}
+                <View style={styles.cardActions}>
+                  {item.status !== 'made' && (
+                    <Pressable
+                      onPress={() => onMarkMade(item)}
+                      disabled={markingId === item.id}
+                      style={({ pressed }) => [
+                        styles.markMadeButton,
+                        { borderColor: theme.fresh },
+                        pressed && styles.markMadeButtonPressed,
+                      ]}>
+                      <Icon name="checkmark.seal" size={16} color={theme.fresh} />
+                      <ThemedText type="linkPrimary" style={{ color: theme.fresh }}>
+                        {markingId === item.id ? 'Marking…' : 'Mark as made'}
+                      </ThemedText>
+                    </Pressable>
+                  )}
+                  <Pressable onPress={() => onDelete(item)} hitSlop={8} style={styles.deleteButton}>
+                    <Icon name="trash" size={16} color={theme.danger} />
+                    <ThemedText type="small" themeColor="danger">
+                      Delete
                     </ThemedText>
                   </Pressable>
-                )}
+                </View>
               </LabelCard>
             )}
           />
@@ -400,11 +430,21 @@ const styles = StyleSheet.create({
   nutritionStat: {
     gap: Spacing.half,
   },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    marginLeft: 'auto',
+  },
   markMadeButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,
-    alignSelf: 'flex-start',
     borderWidth: 1.5,
     borderRadius: Radius.label,
     paddingVertical: Spacing.two,
