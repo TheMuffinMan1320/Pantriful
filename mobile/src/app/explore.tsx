@@ -79,6 +79,7 @@ export default function InventoryScreen() {
   const [receiptReview, setReceiptReview] = useState<ReviewLineItem[] | null>(null);
   const [applyingReceipt, setApplyingReceipt] = useState(false);
   const [dismissedLowStock, setDismissedLowStock] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   const barcodeLockRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -297,8 +298,16 @@ export default function InventoryScreen() {
     );
   }
 
-  const activeItems = (items ?? []).filter((item) => !dismissedLowStock.has(item.id) || !isLowStock(item));
-  const shelvedLowStock = (items ?? []).filter((item) => dismissedLowStock.has(item.id) && isLowStock(item));
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const matchesSearch = (item: InventoryItem) =>
+    !trimmedQuery ||
+    item.name.toLowerCase().includes(trimmedQuery) ||
+    (item.category?.toLowerCase().includes(trimmedQuery) ?? false);
+
+  const searchedItems = (items ?? []).filter(matchesSearch);
+  const activeItems = searchedItems.filter((item) => !dismissedLowStock.has(item.id) || !isLowStock(item));
+  const shelvedLowStock = searchedItems.filter((item) => dismissedLowStock.has(item.id) && isLowStock(item));
+  const hasNoItemsAtAll = (items ?? []).length === 0;
 
   return (
     <ThemedView style={styles.container}>
@@ -329,6 +338,27 @@ export default function InventoryScreen() {
             <ActionButton icon="plus" label="Add" onPress={() => setForm(emptyForm)} accent />
           </View>
         </View>
+
+        {!hasNoItemsAtAll && (
+          <View style={[styles.searchBar, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+            <Icon name="magnifyingglass" size={16} color={theme.textSecondary} />
+            <TextInput
+              placeholder="Search pantry"
+              placeholderTextColor={theme.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+              style={[styles.searchInput, { color: theme.text }]}
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                <Icon name="xmark.circle.fill" size={16} color={theme.textSecondary} />
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {error && (
           <ThemedText type="small" themeColor="danger" style={styles.error}>
@@ -452,9 +482,15 @@ export default function InventoryScreen() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Icon name="shippingbox" size={40} color={theme.textSecondary} />
+                <Icon
+                  name={trimmedQuery ? 'magnifyingglass' : 'shippingbox'}
+                  size={40}
+                  color={theme.textSecondary}
+                />
                 <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-                  Shelf's empty. Add your first item above.
+                  {trimmedQuery
+                    ? `No items match "${searchQuery.trim()}".`
+                    : "Shelf's empty. Add your first item above."}
                 </ThemedText>
               </View>
             }
@@ -676,6 +712,20 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#fff',
     backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.label,
+    paddingHorizontal: Spacing.three,
+    marginBottom: Spacing.three,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    fontSize: 16,
   },
   error: {
     marginBottom: Spacing.two,
