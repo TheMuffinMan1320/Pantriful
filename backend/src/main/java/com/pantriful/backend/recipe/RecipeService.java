@@ -104,6 +104,13 @@ public class RecipeService {
     }
 
     @Transactional
+    public RecipeResponse setFavorite(UUID userId, UUID recipeId, boolean favorite) {
+        Recipe recipe = findOwnedRecipe(userId, recipeId);
+        recipe.setFavorite(favorite);
+        return toResponse(recipe);
+    }
+
+    @Transactional
     public void delete(UUID userId, UUID recipeId) {
         Recipe recipe = findOwnedRecipe(userId, recipeId);
         // Children are removed explicitly (rather than relying only on ON DELETE CASCADE) so Hibernate's

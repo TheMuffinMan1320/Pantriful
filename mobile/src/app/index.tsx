@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarcodeRule } from '@/components/barcode-rule';
 import { Icon } from '@/components/icon';
 import { LabelCard } from '@/components/label-card';
+import { MarkMadeButton } from '@/components/mark-made-button';
 import { StampBadge } from '@/components/stamp-badge';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -166,7 +167,9 @@ export default function HomeScreen() {
                     </Pressable>
                   </LabelCard>
                 ) : (
-                  topPicks.map((pick) => <RecommendationCard key={pick.recipe.id} pick={pick} />)
+                  topPicks.map((pick) => (
+                    <RecommendationCard key={pick.recipe.id} pick={pick} onMade={load} onError={setError} />
+                  ))
                 )}
               </View>
             </>
@@ -190,7 +193,15 @@ function Logo() {
   );
 }
 
-function RecommendationCard({ pick }: { pick: RankedRecipe }) {
+function RecommendationCard({
+  pick,
+  onMade,
+  onError,
+}: {
+  pick: RankedRecipe;
+  onMade: () => void | Promise<void>;
+  onError: (message: string) => void;
+}) {
   const theme = useTheme();
   const { recipe, pantryMatchCount, pantryMatchTotal, missingIngredients } = pick;
 
@@ -229,6 +240,7 @@ function RecommendationCard({ pick }: { pick: RankedRecipe }) {
               </ThemedText>
             </View>
           )}
+          <MarkMadeButton recipe={recipe} onMade={onMade} onError={onError} />
         </LabelCard>
       </Pressable>
     </Link>

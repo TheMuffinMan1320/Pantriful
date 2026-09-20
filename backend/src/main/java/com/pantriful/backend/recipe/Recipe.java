@@ -44,6 +44,9 @@ public class Recipe {
     @Column(nullable = false, length = 20)
     private String status = "suggested";
 
+    @Column(nullable = false)
+    private boolean favorite = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

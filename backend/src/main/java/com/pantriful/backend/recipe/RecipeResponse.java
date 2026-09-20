@@ -9,6 +9,7 @@ public record RecipeResponse(
         String instructions,
         Integer servings,
         String status,
+        boolean favorite,
         List<RecipeIngredientResponse> ingredients,
         RecipeNutritionResponse nutrition) {
 
@@ -19,6 +20,7 @@ public record RecipeResponse(
                 recipe.getInstructions(),
                 recipe.getServings(),
                 recipe.getStatus(),
+                recipe.isFavorite(),
                 ingredients.stream().map(RecipeIngredientResponse::from).toList(),
                 nutrition != null ? RecipeNutritionResponse.from(nutrition) : null);
     }

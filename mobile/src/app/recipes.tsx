@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BarcodeRule } from '@/components/barcode-rule';
 import { Icon } from '@/components/icon';
 import { LabelCard } from '@/components/label-card';
+import { MarkMadeButton } from '@/components/mark-made-button';
 import { StampBadge } from '@/components/stamp-badge';
-import { ApiError, deleteRecipe, generateRecipe, listRecipes, markRecipeMade, type Recipe } from '@/lib/api';
+import { ApiError, deleteRecipe, generateRecipe, listRecipes, setRecipeFavorite, type Recipe } from '@/lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
@@ -20,7 +30,8 @@ export default function RecipesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -57,21 +68,15 @@ export default function RecipesScreen() {
     }
   }, [load]);
 
-  const onMarkMade = useCallback(
-    async (recipe: Recipe) => {
-      setMarkingId(recipe.id);
-      setError(null);
-      try {
-        await markRecipeMade(recipe.id);
-        await load();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Failed to mark recipe as made');
-      } finally {
-        setMarkingId(null);
-      }
-    },
-    [load],
-  );
+  const onToggleFavorite = useCallback(async (recipe: Recipe) => {
+    setError(null);
+    try {
+      const updated = await setRecipeFavorite(recipe.id, !recipe.favorite);
+      setRecipes((current) => current?.map((r) => (r.id === updated.id ? updated : r)) ?? current);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update favorite');
+    }
+  }, []);
 
   const onDelete = useCallback(
     (recipe: Recipe) => {
@@ -94,6 +99,17 @@ export default function RecipesScreen() {
     },
     [load],
   );
+
+  // Search matches the title or any ingredient name, and combines with the Favorites filter.
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const visibleRecipes = (recipes ?? []).filter(
+    (recipe) =>
+      (!favoritesOnly || recipe.favorite) &&
+      (!trimmedQuery ||
+        recipe.title.toLowerCase().includes(trimmedQuery) ||
+        recipe.ingredients.some((ingredient) => ingredient.name.toLowerCase().includes(trimmedQuery))),
+  );
+  const favoriteCount = (recipes ?? []).filter((recipe) => recipe.favorite).length;
 
   if (authState.status !== 'signedIn') {
     return (
@@ -140,19 +156,60 @@ export default function RecipesScreen() {
           </ThemedText>
         )}
 
+        {recipes !== null && recipes.length > 0 && (
+          <>
+            <View
+              style={[styles.searchBar, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+              <Icon name="magnifyingglass" size={16} color={theme.textSecondary} />
+              <TextInput
+                placeholder="Search recipes"
+                placeholderTextColor={theme.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                style={[styles.searchInput, { color: theme.text }]}
+              />
+              {searchQuery.length > 0 && (
+                <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                  <Icon name="xmark.circle.fill" size={16} color={theme.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+            <View style={styles.filterRow}>
+              <FilterChip label="All" active={!favoritesOnly} onPress={() => setFavoritesOnly(false)} />
+              <FilterChip
+                label={`Favorites (${favoriteCount})`}
+                icon="heart.fill"
+                active={favoritesOnly}
+                onPress={() => setFavoritesOnly(true)}
+              />
+            </View>
+          </>
+        )}
+
         {recipes === null ? (
           <ActivityIndicator style={styles.loading} color={theme.accent} />
         ) : (
           <FlatList
-            data={recipes}
+            data={visibleRecipes}
             keyExtractor={(recipe) => recipe.id}
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Icon name="fork.knife" size={40} color={theme.textSecondary} />
+                <Icon
+                  name={trimmedQuery ? 'magnifyingglass' : favoritesOnly ? 'heart' : 'fork.knife'}
+                  size={40}
+                  color={theme.textSecondary}
+                />
                 <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-                  No recipes yet. Generate one from your current pantry.
+                  {trimmedQuery
+                    ? `No ${favoritesOnly ? 'favorite ' : ''}recipes match "${searchQuery.trim()}".`
+                    : favoritesOnly
+                      ? 'No favorites yet. Tap the heart on a recipe to save it here.'
+                      : 'No recipes yet. Generate one from your current pantry.'}
                 </ThemedText>
               </View>
             }
@@ -170,6 +227,17 @@ export default function RecipesScreen() {
                     )}
                   </View>
                   {item.status === 'made' && <StampBadge label="MADE" color={theme.fresh} />}
+                  <Pressable
+                    onPress={() => onToggleFavorite(item)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.favorite ? 'Remove from favorites' : 'Add to favorites'}>
+                    <Icon
+                      name={item.favorite ? 'heart.fill' : 'heart'}
+                      size={22}
+                      color={item.favorite ? theme.danger : theme.textSecondary}
+                    />
+                  </Pressable>
                 </View>
 
                 <BarcodeRule seed={item.id} />
@@ -220,21 +288,7 @@ export default function RecipesScreen() {
                 )}
 
                 <View style={styles.cardActions}>
-                  {item.status !== 'made' && (
-                    <Pressable
-                      onPress={() => onMarkMade(item)}
-                      disabled={markingId === item.id}
-                      style={({ pressed }) => [
-                        styles.markMadeButton,
-                        { borderColor: theme.fresh },
-                        pressed && styles.markMadeButtonPressed,
-                      ]}>
-                      <Icon name="checkmark.seal" size={16} color={theme.fresh} />
-                      <ThemedText type="linkPrimary" style={{ color: theme.fresh }}>
-                        {markingId === item.id ? 'Marking…' : 'Mark as made'}
-                      </ThemedText>
-                    </Pressable>
-                  )}
+                  <MarkMadeButton recipe={item} onMade={load} onError={setError} />
                   <Pressable onPress={() => onDelete(item)} hitSlop={8} style={styles.deleteButton}>
                     <Icon name="trash" size={16} color={theme.danger} />
                     <ThemedText type="small" themeColor="danger">
@@ -316,6 +370,36 @@ function InstructionSteps({ instructions }: { instructions: string }) {
   );
 }
 
+function FilterChip({
+  label,
+  icon,
+  active,
+  onPress,
+}: {
+  label: string;
+  icon?: 'heart.fill';
+  active: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const tint = active ? theme.accentText : theme.textSecondary;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.filterChip,
+        active
+          ? { backgroundColor: theme.accent, borderColor: theme.accent }
+          : { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+      ]}>
+      {icon && <Icon name={icon} size={14} color={tint} />}
+      <ThemedText type="small" style={{ color: tint }}>
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
 function NutritionStat({ value, unit }: { value: number; unit: string }) {
   return (
     <View style={styles.nutritionStat}>
@@ -363,6 +447,34 @@ const styles = StyleSheet.create({
   },
   generateButtonPressed: {
     opacity: 0.85,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.label,
+    paddingHorizontal: Spacing.three,
+    marginBottom: Spacing.two,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    fontSize: 16,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginBottom: Spacing.three,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.label,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.three,
   },
   error: {
     marginBottom: Spacing.two,
@@ -440,17 +552,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
     marginLeft: 'auto',
-  },
-  markMadeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    borderWidth: 1.5,
-    borderRadius: Radius.label,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-  },
-  markMadeButtonPressed: {
-    opacity: 0.7,
   },
 });

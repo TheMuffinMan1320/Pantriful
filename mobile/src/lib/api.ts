@@ -185,6 +185,7 @@ export type Recipe = {
   instructions: string;
   servings: number | null;
   status: 'suggested' | 'made';
+  favorite: boolean;
   ingredients: RecipeIngredient[];
   nutrition: RecipeNutrition | null;
 };
@@ -195,6 +196,10 @@ export function listRecipes(): Promise<Recipe[]> {
 
 export function generateRecipe(): Promise<Recipe> {
   return authedJson<Recipe>('/recipes/generate', { method: 'POST' });
+}
+
+export function setRecipeFavorite(id: string, favorite: boolean): Promise<Recipe> {
+  return authedJson<Recipe>(`/recipes/${id}/favorite`, { method: favorite ? 'PUT' : 'DELETE' });
 }
 
 export function deleteRecipe(id: string): Promise<void> {
